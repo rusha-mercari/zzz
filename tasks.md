@@ -28,13 +28,20 @@ Based on the plan.md file, here is a comprehensive todo list broken down into di
 
 ### 3. Basic Plugin Communication
 
-- [ ] **3.1** Implement pipe_message_to_plugin wrapper for inter-pane communication
+- [x] **3.1** Implement pipe_message_to_plugin wrapper for inter-pane communication
+  - ✅ Created `src/communication.rs` module with `CommunicationError` and `MessageEnvelope`
+  - ✅ Implemented `send_coordination_message()` for targeted messages
+  - ✅ Implemented `broadcast_coordination_message()` for broadcast messages
+  - ✅ Enhanced `pipe()` method with backward compatibility for envelope and legacy formats
+  - ✅ Added comprehensive error handling and logging
+  - ✅ Supports raw text, legacy JSON, and modern envelope message formats
 
 - [ ] **3.2** Create message routing system to dispatch messages by pane role
 
 - [ ] **3.3** Implement message queue for handling async communication
 
 - [ ] **3.4** Add message serialization/deserialization utilities
+  - 🔄 **Partially Complete**: Message serialization/deserialization implemented as part of 3.1
 
 ## Phase 2: Workflow Coordination
 
