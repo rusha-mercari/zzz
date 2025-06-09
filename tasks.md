@@ -20,7 +20,7 @@ Based on the plan.md file, here is a comprehensive todo list broken down into di
 
 - [ ] **2.1** Implement directory creation for `.zzz/task-{task_id}/` structure
 
-- [ ] **2.2** Create file path utilities for todo-list.md, review.md, plan.md, progress.json
+- [ ] **2.2** Create file path utilities for todo-list.md, review.md, plan.md
 
 - [ ] **2.3** Implement atomic file read/write operations with error handling
 
@@ -86,37 +86,30 @@ Based on the plan.md file, here is a comprehensive todo list broken down into di
 
 - [ ] **8.3** Handle file system events (create, modify, delete) with proper error handling
 
-### 9. Progress Tracking
 
-- [ ] **9.1** Create progress.json file with task completion status
+### 9. Error Handling
 
-- [ ] **9.2** Implement visual progress indicators in plugin UI
+- [ ] **9.1** Implement retry mechanisms for failed pane communications
 
-- [ ] **9.3** Add time tracking for each workflow phase
+- [ ] **9.2** Add fallback procedures for unresponsive AI assistants
 
-### 10. Error Handling
+- [ ] **9.3** Create error reporting and recovery mechanisms
 
-- [ ] **10.1** Implement retry mechanisms for failed pane communications
+### 10. Configuration Management
 
-- [ ] **10.2** Add fallback procedures for unresponsive AI assistants
+- [ ] **10.1** Implement plugin configuration parsing from zellij.kdl
 
-- [ ] **10.3** Create error reporting and recovery mechanisms
-
-### 11. Configuration Management
-
-- [ ] **11.1** Implement plugin configuration parsing from zellij.kdl
-
-- [ ] **11.2** Add runtime configuration validation and defaults
+- [ ] **10.2** Add runtime configuration validation and defaults
 
 ## Phase 4: Testing Infrastructure
 
-### 12. Test Framework Setup
+### 11. Test Framework Setup
 
-- [ ] **12.1** Create mock AI assistant responses for testing
+- [ ] **11.1** Create mock AI assistant responses for testing
 
-- [ ] **12.2** Implement integration test harness for end-to-end workflow
+- [ ] **11.2** Implement integration test harness for end-to-end workflow
 
-- [ ] **12.3** Add performance and load testing utilities
+- [ ] **11.3** Add performance and load testing utilities
 
 ## Implementation Priority
 
@@ -133,15 +126,14 @@ Based on the plan.md file, here is a comprehensive todo list broken down into di
 
 - Tasks 7.1-7.3 (Review Coordination)
 - Tasks 8.1-8.3 (File Monitoring)
-- Tasks 9.1-9.2 (Progress Tracking)
-- Tasks 10.1-10.2 (Error Handling)
+- Tasks 9.1-9.2 (Error Handling)
 
 ### Low Priority (Nice to Have)
 
-- Tasks 11.1-11.2 (Advanced Configuration)
-- Tasks 12.1-12.3 (Testing Infrastructure)
-- Task 9.3 (Time Tracking)
-- Task 10.3 (Advanced Error Recovery)
+- Tasks 10.1-10.2 (Advanced Configuration)
+- Tasks 11.1-11.3 (Testing Infrastructure)
+- Task 9.3 (Advanced Error Recovery)
+- Progress tracking features (removed from MVP)
 
 ## Dependencies Between Tasks
 
@@ -161,4 +153,4 @@ Each task includes both:
 2. **Integration Tests**: Test component interactions and file system operations
 3. **Manual Tests**: For UI components and end-to-end workflows
 
-Total estimated tasks: **36 discrete implementable features**
+Total estimated tasks: **33 discrete implementable features** (progress tracking removed from MVP)
