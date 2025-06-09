@@ -3,7 +3,7 @@ layout {
     pane size=1 borderless=true {
         plugin location="tab-bar"
     }
-    pane edit="src/main.rs" size="80%"
+    pane edit="src/main.rs" size="60%"
     pane
     pane size=1 borderless=true {
         plugin location="status-bar"

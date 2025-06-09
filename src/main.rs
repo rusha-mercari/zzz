@@ -1,17 +1,58 @@
 use zellij_tile::prelude::*;
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, HashMap};
+use notify::Watcher;
 
-use std::collections::BTreeMap;
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+enum WorkflowPhase {
+    Initializing,
+    PlanningInProgress,
+    PlanReady,
+    ImplementationInProgress,
+    ImplementationComplete,
+    ReviewInProgress,
+    ReviewComplete,
+    Finished,
+}
 
-#[derive(Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+enum PaneRole {
+    Overseer,
+    Commander,
+    TaskList,
+    Review,
+    Editor,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Notification {
+    pub message: String,
+    pub timestamp: u64,
+}
+
 struct State {
-    // the state of the plugin
+    task_id: u32,
+    current_phase: WorkflowPhase,
+    pane_ids: HashMap<PaneRole, PaneId>,
+    file_watcher: Option<Box<dyn Watcher>>,
+    pending_notifications: Vec<Notification>,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            task_id: 0,
+            current_phase: WorkflowPhase::Initializing,
+            pane_ids: HashMap::new(),
+            file_watcher: None,
+            pending_notifications: Vec::new(),
+        }
+    }
 }
 
 register_plugin!(State);
 
-// NOTE: you can start a development environment inside Zellij by running `zellij -l zellij.kdl` in
-// this plugin's folder
-//
+
 // More info on plugins: https://zellij.dev/documentation/plugins
 
 impl ZellijPlugin for State {
@@ -30,7 +71,7 @@ impl ZellijPlugin for State {
         // itself
         should_render
     }
-    fn pipe (&mut self, pipe_message: PipeMessage) -> bool {
+    fn pipe(&mut self, pipe_message: PipeMessage) -> bool {
         let mut should_render = false;
         // react to data piped to this plugin from the CLI, a keybinding or another plugin
         // read more about pipes: https://zellij.dev/documentation/plugin-pipes
@@ -38,7 +79,5 @@ impl ZellijPlugin for State {
         // itself
         should_render
     }
-    fn render(&mut self, rows: usize, cols: usize) {
-        println!("Hi there! I have {rows} rows and {cols} columns");
-    }
+    fn render(&mut self, rows: usize, cols: usize) {}
 }
