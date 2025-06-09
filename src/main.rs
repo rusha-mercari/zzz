@@ -1,7 +1,7 @@
-use zellij_tile::prelude::*;
+use notify::Watcher;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
-use notify::Watcher;
+use zellij_tile::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 enum WorkflowPhase {
@@ -30,6 +30,45 @@ struct Notification {
     pub timestamp: u64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+enum CoordinationMessage {
+    // CLI initiates workflow with task details
+    StartPlanning {
+        task_id: u32,
+        task_description: String,
+    },
+
+    // Planning phase completion
+    PlanReady {
+        todo_file_path: String,
+    },
+
+    // Implementation phase
+    StartImplementation,
+    TaskCompleted {
+        task_id: String,
+    },
+    AllTasksComplete,
+
+    // Review phase
+    StartReview,
+    ReviewComplete {
+        review_file_path: String,
+    },
+
+    // State management
+    PhaseTransition {
+        from: WorkflowPhase,
+        to: WorkflowPhase,
+    },
+
+    // File system events
+    FileChanged {
+        file_path: String,
+        event_type: String,
+    },
+}
+
 struct State {
     task_id: u32,
     current_phase: WorkflowPhase,
@@ -51,7 +90,6 @@ impl Default for State {
 }
 
 register_plugin!(State);
-
 
 // More info on plugins: https://zellij.dev/documentation/plugins
 

@@ -14,7 +14,7 @@ Based on the plan.md file, here is a comprehensive todo list broken down into di
 
 - [ ] **1.4** Create Notification struct for pending notifications queue
 
-- [ ] **1.5** Implement CoordinationMessage enum with all message types from the protocol
+- [x] **1.5** Implement CoordinationMessage enum with all message types from the protocol
 
 ### 2. File System Operations
 
