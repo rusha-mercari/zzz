@@ -4,7 +4,7 @@ mod notification;
 mod pane_role;
 mod workflow_phase;
 
-use file_system::FileSystem;
+use file_system::{FileSystem, FileSystemError};
 use notification::Notification;
 use notify::Watcher;
 use pane_role::PaneRole;
@@ -71,6 +71,79 @@ impl State {
     /// Gets the path to the coordinator.log file for the current task
     fn get_coordinator_log_path(&self) -> std::path::PathBuf {
         FileSystem::get_coordinator_log_path(self.task_id)
+    }
+
+    /// Atomically writes content to the todo-list.md file
+    fn write_todo_list(&self, content: &str) -> Result<(), FileSystemError> {
+        let path = self.get_todo_list_path();
+        FileSystem::write_file_atomic(path, content)
+    }
+
+    /// Safely reads the todo-list.md file content
+    fn read_todo_list(&self) -> Result<String, FileSystemError> {
+        let path = self.get_todo_list_path();
+        FileSystem::read_file_safe(path)
+    }
+
+    /// Atomically writes content to the review.md file
+    fn write_review(&self, content: &str) -> Result<(), FileSystemError> {
+        let path = self.get_review_path();
+        FileSystem::write_file_atomic(path, content)
+    }
+
+    /// Safely reads the review.md file content
+    fn read_review(&self) -> Result<String, FileSystemError> {
+        let path = self.get_review_path();
+        FileSystem::read_file_safe(path)
+    }
+
+    /// Atomically writes content to the plan.md file
+    fn write_plan(&self, content: &str) -> Result<(), FileSystemError> {
+        let path = self.get_plan_path();
+        FileSystem::write_file_atomic(path, content)
+    }
+
+    /// Safely reads the plan.md file content
+    fn read_plan(&self) -> Result<String, FileSystemError> {
+        let path = self.get_plan_path();
+        FileSystem::read_file_safe(path)
+    }
+
+    /// Appends a log entry to the coordinator log
+    fn log_coordinator(&self, message: &str) -> Result<(), FileSystemError> {
+        let path = self.get_coordinator_log_path();
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let log_entry = format!("[{}] {}\n", timestamp, message);
+        FileSystem::append_to_file(path, &log_entry)
+    }
+
+    /// Checks if the todo-list.md file exists
+    fn todo_list_exists(&self) -> bool {
+        let path = self.get_todo_list_path();
+        FileSystem::file_exists(path)
+    }
+
+    /// Checks if the review.md file exists
+    fn review_exists(&self) -> bool {
+        let path = self.get_review_path();
+        FileSystem::file_exists(path)
+    }
+
+    /// Ensures all required files exist for the current task
+    fn ensure_task_files_exist(&self) -> Result<(), FileSystemError> {
+        // Create the directory structure first
+        self.setup_task_directories()
+            .map_err(FileSystemError::from)?;
+        
+        // Ensure log files exist
+        FileSystem::ensure_file_exists(self.get_coordinator_log_path())?;
+        FileSystem::ensure_file_exists(self.get_overseer_log_path())?;
+        FileSystem::ensure_file_exists(self.get_commander_log_path())?;
+        
+        Ok(())
     }
 }
 

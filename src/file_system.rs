@@ -1,10 +1,132 @@
 use std::fs;
-use std::path::PathBuf;
+use std::io::{self, Write};
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
+
+/// Custom error types for file operations
+#[derive(Debug)]
+pub enum FileSystemError {
+    Io(io::Error),
+    Timeout,
+    PermissionDenied,
+    ConcurrentAccess,
+}
+
+impl From<io::Error> for FileSystemError {
+    fn from(error: io::Error) -> Self {
+        match error.kind() {
+            io::ErrorKind::PermissionDenied => FileSystemError::PermissionDenied,
+            io::ErrorKind::WouldBlock => FileSystemError::ConcurrentAccess,
+            _ => FileSystemError::Io(error),
+        }
+    }
+}
 
 /// Handles file system operations for the ZZZ plugin
 pub struct FileSystem;
 
 impl FileSystem {
+    /// Maximum number of retry attempts for file operations
+    const MAX_RETRIES: u32 = 3;
+    
+    /// Delay between retry attempts
+    const RETRY_DELAY: Duration = Duration::from_millis(50);
+    
+    /// Timeout for file operations
+    const OPERATION_TIMEOUT: Duration = Duration::from_secs(5);
+
+    /// Atomically writes content to a file using temporary file + rename pattern
+    pub fn write_file_atomic<P: AsRef<Path>>(path: P, content: &str) -> Result<(), FileSystemError> {
+        let path = path.as_ref();
+        let temp_path = path.with_extension("tmp");
+        
+        Self::with_retry(|| {
+            // Write to temporary file first
+            let mut temp_file = fs::File::create(&temp_path)?;
+            temp_file.write_all(content.as_bytes())?;
+            temp_file.sync_all()?;
+            drop(temp_file);
+            
+            // Atomically rename to final location
+            fs::rename(&temp_path, path)?;
+            Ok(())
+        })
+    }
+
+    /// Safely reads file content with retry logic for concurrent access
+    pub fn read_file_safe<P: AsRef<Path>>(path: P) -> Result<String, FileSystemError> {
+        let path = path.as_ref();
+        
+        Self::with_retry(|| {
+            fs::read_to_string(path).map_err(FileSystemError::from)
+        })
+    }
+
+    /// Appends content to a file (useful for log files)
+    pub fn append_to_file<P: AsRef<Path>>(path: P, content: &str) -> Result<(), FileSystemError> {
+        let path = path.as_ref();
+        
+        Self::with_retry(|| {
+            let mut file = fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)?;
+            file.write_all(content.as_bytes())?;
+            file.sync_all()?;
+            Ok(())
+        })
+    }
+
+    /// Checks if a file exists and is readable
+    pub fn file_exists<P: AsRef<Path>>(path: P) -> bool {
+        let path = path.as_ref();
+        path.exists() && path.is_file()
+    }
+
+    /// Checks if a file is readable by attempting to read metadata
+    pub fn file_is_readable<P: AsRef<Path>>(path: P) -> bool {
+        path.as_ref().metadata().is_ok()
+    }
+
+    /// Creates a file if it doesn't exist
+    pub fn ensure_file_exists<P: AsRef<Path>>(path: P) -> Result<(), FileSystemError> {
+        let path = path.as_ref();
+        if !Self::file_exists(path) {
+            Self::write_file_atomic(path, "")?;
+        }
+        Ok(())
+    }
+
+    /// Retry wrapper for file operations with exponential backoff
+    fn with_retry<F, T>(mut operation: F) -> Result<T, FileSystemError>
+    where
+        F: FnMut() -> Result<T, FileSystemError>,
+    {
+        let start_time = Instant::now();
+        let mut attempt = 0;
+        
+        loop {
+            if start_time.elapsed() > Self::OPERATION_TIMEOUT {
+                return Err(FileSystemError::Timeout);
+            }
+            
+            match operation() {
+                Ok(result) => return Ok(result),
+                Err(FileSystemError::ConcurrentAccess) if attempt < Self::MAX_RETRIES => {
+                    attempt += 1;
+                    std::thread::sleep(Self::RETRY_DELAY * attempt);
+                    continue;
+                }
+                Err(FileSystemError::Io(ref io_err)) 
+                    if io_err.kind() == io::ErrorKind::Interrupted && attempt < Self::MAX_RETRIES => {
+                    attempt += 1;
+                    std::thread::sleep(Self::RETRY_DELAY * attempt);
+                    continue;
+                }
+                Err(err) => return Err(err),
+            }
+        }
+    }
     /// Creates the directory structure for a given task ID
     /// Creates .zzz/task-{task_id}/ directory structure
     pub fn create_task_directory(task_id: u32) -> Result<PathBuf, std::io::Error> {
@@ -71,6 +193,49 @@ impl FileSystem {
     /// Gets the path to the coordinator.log file for the given task_id
     pub fn get_coordinator_log_path(task_id: u32) -> PathBuf {
         Self::get_logs_dir_path(task_id).join("coordinator.log")
+    }
+
+    /// Writes a timestamped log entry to the overseer log
+    pub fn log_overseer(task_id: u32, message: &str) -> Result<(), FileSystemError> {
+        let log_path = Self::get_overseer_log_path(task_id);
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let entry = format!("[{}] {}\n", timestamp, message);
+        Self::append_to_file(log_path, &entry)
+    }
+
+    /// Writes a timestamped log entry to the commander log
+    pub fn log_commander(task_id: u32, message: &str) -> Result<(), FileSystemError> {
+        let log_path = Self::get_commander_log_path(task_id);
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let entry = format!("[{}] {}\n", timestamp, message);
+        Self::append_to_file(log_path, &entry)
+    }
+
+    /// Writes a timestamped log entry to the coordinator log
+    pub fn log_coordinator(task_id: u32, message: &str) -> Result<(), FileSystemError> {
+        let log_path = Self::get_coordinator_log_path(task_id);
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let entry = format!("[{}] {}\n", timestamp, message);
+        Self::append_to_file(log_path, &entry)
+    }
+
+    /// Generic logging function that can write to any log file
+    pub fn log_to_file<P: AsRef<Path>>(path: P, message: &str) -> Result<(), FileSystemError> {
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let entry = format!("[{}] {}\n", timestamp, message);
+        Self::append_to_file(path, &entry)
     }
 }
 
