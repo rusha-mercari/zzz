@@ -1,73 +1,14 @@
+mod coordination_message;
+mod notification;
+mod pane_role;
+mod workflow_phase;
+
+use notification::Notification;
 use notify::Watcher;
-use serde::{Deserialize, Serialize};
+use pane_role::PaneRole;
 use std::collections::{BTreeMap, HashMap};
+use workflow_phase::WorkflowPhase;
 use zellij_tile::prelude::*;
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-enum WorkflowPhase {
-    Initializing,
-    PlanningInProgress,
-    PlanReady,
-    ImplementationInProgress,
-    ImplementationComplete,
-    ReviewInProgress,
-    ReviewComplete,
-    Finished,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-enum PaneRole {
-    Overseer,
-    Commander,
-    TaskList,
-    Review,
-    Editor,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Notification {
-    pub message: String,
-    pub timestamp: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-enum CoordinationMessage {
-    // CLI initiates workflow with task details
-    StartPlanning {
-        task_id: u32,
-        task_description: String,
-    },
-
-    // Planning phase completion
-    PlanReady {
-        todo_file_path: String,
-    },
-
-    // Implementation phase
-    StartImplementation,
-    TaskCompleted {
-        task_id: String,
-    },
-    AllTasksComplete,
-
-    // Review phase
-    StartReview,
-    ReviewComplete {
-        review_file_path: String,
-    },
-
-    // State management
-    PhaseTransition {
-        from: WorkflowPhase,
-        to: WorkflowPhase,
-    },
-
-    // File system events
-    FileChanged {
-        file_path: String,
-        event_type: String,
-    },
-}
 
 struct State {
     task_id: u32,

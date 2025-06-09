@@ -6,7 +6,8 @@
       "Bash(cargo check:*)",
       "Bash(cargo test:*)",
       "Bash(rustc:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(find:*)"
     ],
     "deny": []
   }

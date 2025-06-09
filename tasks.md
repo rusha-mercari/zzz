@@ -10,9 +10,9 @@ Based on the plan.md file, here is a comprehensive todo list broken down into di
 
 - [x] **1.2** Implement WorkflowPhase enum with all 8 phases (Initializing → Finished)
 
-- [ ] **1.3** Implement PaneRole enum for Overseer, Commander, TaskList, Review, Editor
+- [x] **1.3** Implement PaneRole enum for Overseer, Commander, TaskList, Review, Editor
 
-- [ ] **1.4** Create Notification struct for pending notifications queue
+- [x] **1.4** Create Notification struct for pending notifications queue
 
 - [x] **1.5** Implement CoordinationMessage enum with all message types from the protocol
 
