@@ -20,7 +20,7 @@ Based on the plan.md file, here is a comprehensive todo list broken down into di
 
 - [x] **2.1** Implement directory creation for `.zzz/task-{task_id}/` structure
 
-- [ ] **2.2** Create file path utilities for todo-list.md, review.md, plan.md
+- [x] **2.2** Create file path utilities for todo-list.md, review.md, plan.md
 
 - [ ] **2.3** Implement atomic file read/write operations with error handling
 

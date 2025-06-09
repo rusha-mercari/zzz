@@ -37,6 +37,41 @@ impl State {
     fn setup_task_directories(&self) -> Result<std::path::PathBuf, std::io::Error> {
         FileSystem::setup_task_directories(self.task_id)
     }
+
+    /// Gets the path to the todo-list.md file for the current task
+    fn get_todo_list_path(&self) -> std::path::PathBuf {
+        FileSystem::get_todo_list_path(self.task_id)
+    }
+
+    /// Gets the path to the review.md file for the current task
+    fn get_review_path(&self) -> std::path::PathBuf {
+        FileSystem::get_review_path(self.task_id)
+    }
+
+    /// Gets the path to the plan.md file for the current task
+    fn get_plan_path(&self) -> std::path::PathBuf {
+        FileSystem::get_plan_path(self.task_id)
+    }
+
+    /// Gets the path to the logs directory for the current task
+    fn get_logs_dir_path(&self) -> std::path::PathBuf {
+        FileSystem::get_logs_dir_path(self.task_id)
+    }
+
+    /// Gets the path to the overseer.log file for the current task
+    fn get_overseer_log_path(&self) -> std::path::PathBuf {
+        FileSystem::get_overseer_log_path(self.task_id)
+    }
+
+    /// Gets the path to the commander.log file for the current task
+    fn get_commander_log_path(&self) -> std::path::PathBuf {
+        FileSystem::get_commander_log_path(self.task_id)
+    }
+
+    /// Gets the path to the coordinator.log file for the current task
+    fn get_coordinator_log_path(&self) -> std::path::PathBuf {
+        FileSystem::get_coordinator_log_path(self.task_id)
+    }
 }
 
 register_plugin!(State);

@@ -29,7 +29,48 @@ impl FileSystem {
         Self::create_zzz_directory()?;
         
         // Then create the specific task directory
-        Self::create_task_directory(task_id)
+        let task_dir = Self::create_task_directory(task_id)?;
+        
+        // Create logs subdirectory
+        let logs_dir = Self::get_logs_dir_path(task_id);
+        fs::create_dir_all(&logs_dir)?;
+        
+        Ok(task_dir)
+    }
+
+    /// Gets the path to the todo-list.md file for the given task_id
+    pub fn get_todo_list_path(task_id: u32) -> PathBuf {
+        Self::get_task_directory_path(task_id).join("todo-list.md")
+    }
+
+    /// Gets the path to the review.md file for the given task_id
+    pub fn get_review_path(task_id: u32) -> PathBuf {
+        Self::get_task_directory_path(task_id).join("review.md")
+    }
+
+    /// Gets the path to the plan.md file for the given task_id
+    pub fn get_plan_path(task_id: u32) -> PathBuf {
+        Self::get_task_directory_path(task_id).join("plan.md")
+    }
+
+    /// Gets the path to the logs directory for the given task_id
+    pub fn get_logs_dir_path(task_id: u32) -> PathBuf {
+        Self::get_task_directory_path(task_id).join("logs")
+    }
+
+    /// Gets the path to the overseer.log file for the given task_id
+    pub fn get_overseer_log_path(task_id: u32) -> PathBuf {
+        Self::get_logs_dir_path(task_id).join("overseer.log")
+    }
+
+    /// Gets the path to the commander.log file for the given task_id
+    pub fn get_commander_log_path(task_id: u32) -> PathBuf {
+        Self::get_logs_dir_path(task_id).join("commander.log")
+    }
+
+    /// Gets the path to the coordinator.log file for the given task_id
+    pub fn get_coordinator_log_path(task_id: u32) -> PathBuf {
+        Self::get_logs_dir_path(task_id).join("coordinator.log")
     }
 }
 
@@ -97,4 +138,5 @@ mod tests {
 
         std::env::set_current_dir(original_dir).unwrap();
     }
+
 }
