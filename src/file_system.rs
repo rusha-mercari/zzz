@@ -137,12 +137,12 @@ impl FileSystem {
 
     /// Gets the path to the task directory for the given task_id
     pub fn get_task_directory_path(task_id: u32) -> PathBuf {
-        PathBuf::from(".zzz").join(format!("task-{}", task_id))
+        PathBuf::from("/host/.zzz").join(format!("task-{}", task_id))
     }
 
     /// Creates the main .zzz directory if it doesn't exist
     pub fn create_zzz_directory() -> Result<(), std::io::Error> {
-        fs::create_dir_all(".zzz")
+        fs::create_dir_all("/host/.zzz")
     }
 
     /// Sets up the complete directory structure for the given task
@@ -247,7 +247,7 @@ mod tests {
     #[test]
     fn test_get_task_directory_path() {
         let path = FileSystem::get_task_directory_path(123);
-        assert_eq!(path, PathBuf::from(".zzz/task-123"));
+        assert_eq!(path, PathBuf::from("/host/.zzz/task-123"));
     }
 
     #[test]
@@ -262,10 +262,10 @@ mod tests {
         let task_dir_path = result.unwrap();
         assert!(task_dir_path.exists());
         assert!(task_dir_path.is_dir());
-        assert_eq!(task_dir_path, PathBuf::from(".zzz/task-456"));
+        assert_eq!(task_dir_path, PathBuf::from("/host/.zzz/task-456"));
 
         // Verify parent .zzz directory also exists
-        assert!(PathBuf::from(".zzz").exists());
+        assert!(PathBuf::from("/host/.zzz").exists());
 
         std::env::set_current_dir(original_dir).unwrap();
     }
@@ -278,8 +278,8 @@ mod tests {
 
         let result = FileSystem::create_zzz_directory();
         assert!(result.is_ok());
-        assert!(PathBuf::from(".zzz").exists());
-        assert!(PathBuf::from(".zzz").is_dir());
+        assert!(PathBuf::from("/host/.zzz").exists());
+        assert!(PathBuf::from("/host/.zzz").is_dir());
 
         std::env::set_current_dir(original_dir).unwrap();
     }

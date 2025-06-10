@@ -518,9 +518,17 @@ impl ZellijPlugin for State {
         let _ = self.log_coordinator("ZZZ Plugin loaded, requesting permissions...");
         
         // Initialize task directories
-        if let Err(e) = self.ensure_task_files_exist() {
-            let error_msg = format!("Failed to create task directories: {:?}", e);
-            let _ = self.log_coordinator(&error_msg);
+        match self.ensure_task_files_exist() {
+            Ok(()) => {
+                let success_msg = format!("Successfully created task directories for task {}", self.task_id);
+                let _ = self.log_coordinator(&success_msg);
+            }
+            Err(e) => {
+                let error_msg = format!("CRITICAL: Failed to create task directories for task {}: {:?}", self.task_id, e);
+                let _ = self.log_coordinator(&error_msg);
+                // Note: Plugin continues to run even if directory creation fails
+                // This allows the UI to show the error state
+            }
         }
     }
     fn update(&mut self, event: Event) -> bool {
