@@ -16,7 +16,8 @@
       "WebFetch(domain:zellij.dev)",
       "WebFetch(domain:docs.rs)",
       "Bash(mkdir:*)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

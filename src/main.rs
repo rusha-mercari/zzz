@@ -4,6 +4,7 @@ mod file_system;
 mod notification;
 mod pane_role;
 mod workflow_phase;
+mod zellij_service;
 
 use communication::{
     Communication, CommunicationError, MessageEnvelope, MessageRouter, ParsedMessage,
@@ -15,6 +16,7 @@ use notify::Watcher;
 use pane_role::PaneRole;
 use std::collections::BTreeMap;
 use workflow_phase::WorkflowPhase;
+use zellij_service::ZellijServiceImpl;
 use zellij_tile::prelude::*;
 
 struct State {
@@ -25,7 +27,7 @@ struct State {
     pending_notifications: Vec<Notification>,
     received_messages: Vec<CoordinationMessage>,
     last_message: Option<String>,
-    message_router: MessageRouter,
+    message_router: MessageRouter<ZellijServiceImpl>,
     permissions_granted: bool,
     pane_manifest: Option<PaneManifest>,
 }
@@ -40,7 +42,7 @@ impl Default for State {
             pending_notifications: Vec::new(),
             received_messages: Vec::new(),
             last_message: None,
-            message_router: MessageRouter::new(),
+            message_router: MessageRouter::new(ZellijServiceImpl),
             permissions_granted: false,
             pane_manifest: None,
         }
