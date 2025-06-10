@@ -25,6 +25,7 @@ struct State {
     last_message: Option<String>,
     message_router: MessageRouter,
     permissions_granted: bool,
+    pane_manifest: Option<PaneManifest>,
 }
 
 impl Default for State {
@@ -39,6 +40,7 @@ impl Default for State {
             last_message: None,
             message_router: MessageRouter::new(),
             permissions_granted: false,
+            pane_manifest: None,
         }
     }
 }
@@ -416,24 +418,30 @@ impl State {
         let _ = self.log_coordinator(&log_msg);
     }
 
-    /// Discover and register panes based on their names/titles
+    /// Discover and register panes based on their names/titles using current manifest
     fn discover_and_register_panes(&mut self) {
-        // This is a placeholder for pane discovery
-        // In a real implementation, we would iterate through available panes
-        // and use MessageRouter::match_pane_name_to_role to map them
-        
         let log_msg = "Attempting to discover panes...".to_string();
         let _ = self.log_coordinator(&log_msg);
         
-        match self.message_router.discover_panes() {
-            Ok(()) => {
-                let log_msg = "Pane discovery completed successfully".to_string();
-                let _ = self.log_coordinator(&log_msg);
+        if let Some(ref manifest) = self.pane_manifest {
+            match self.message_router.discover_panes_with_manifest(manifest) {
+                Ok(()) => {
+                    let discovered_roles = self.message_router.get_registered_roles();
+                    let log_msg = format!(
+                        "Pane discovery completed successfully. Found {} panes: {:?}",
+                        discovered_roles.len(),
+                        discovered_roles
+                    );
+                    let _ = self.log_coordinator(&log_msg);
+                }
+                Err(e) => {
+                    let error_msg = format!("Pane discovery failed: {}", e);
+                    let _ = self.log_coordinator(&error_msg);
+                }
             }
-            Err(e) => {
-                let error_msg = format!("Pane discovery failed: {}", e);
-                let _ = self.log_coordinator(&error_msg);
-            }
+        } else {
+            let error_msg = "No pane manifest available for discovery".to_string();
+            let _ = self.log_coordinator(&error_msg);
         }
     }
 
@@ -499,9 +507,11 @@ impl ZellijPlugin for State {
             PermissionType::WriteToStdin,
         ]);
         
-        // Subscribe to permission results and other events
+        // Subscribe to permission results and layout events
         subscribe(&[
             EventType::PermissionRequestResult,
+            EventType::PaneUpdate,
+            EventType::TabUpdate,
         ]);
         
         // Log the plugin initialization
@@ -524,14 +534,36 @@ impl ZellijPlugin for State {
                 // For now, we'll assume they are if we get here
                 if !self.permissions_granted {
                     self.permissions_granted = true;
-                    let _ = self.log_coordinator("All permissions granted, starting pane discovery...");
-                    self.discover_and_register_panes();
-                    
-                    // After successful pane registration, auto-send StartPlanning message
-                    self.send_start_planning_message();
+                    let _ = self.log_coordinator("All permissions granted, waiting for pane manifest...");
                 }
                 
                 true // trigger re-render to show permission status
+            }
+            Event::PaneUpdate(pane_manifest) => {
+                // Store the updated pane manifest
+                self.pane_manifest = Some(pane_manifest);
+                
+                let log_msg = "Received pane manifest update, attempting pane discovery...".to_string();
+                let _ = self.log_coordinator(&log_msg);
+                
+                // Rediscover panes with the new manifest
+                self.discover_and_register_panes();
+                
+                // If we have permissions and found panes, send initial message
+                if self.permissions_granted && !self.get_registered_roles().is_empty() {
+                    self.send_start_planning_message();
+                }
+                
+                true // trigger re-render to show updated pane information
+            }
+            Event::TabUpdate(_tab_info) => {
+                // Tab structure changed, request updated pane information
+                let log_msg = "Tab update received, pane manifest may be outdated".to_string();
+                let _ = self.log_coordinator(&log_msg);
+                
+                // Note: Zellij will send a PaneUpdate event after TabUpdate,
+                // so we don't need to do anything special here
+                true // trigger re-render
             }
             _ => false,
         }

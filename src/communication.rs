@@ -172,41 +172,48 @@ impl MessageRouter {
         }
     }
 
-    /// Discover panes and map them to roles based on their names
-    pub fn discover_panes(&mut self) -> Result<(), CommunicationError> {
+    /// Discover panes and map them to roles based on their names using real Zellij API
+    pub fn discover_panes_with_manifest(&mut self, pane_manifest: &PaneManifest) -> Result<(), CommunicationError> {
         // Clear existing registry
         self.pane_registry.clear();
         
-        // Get the current layout information from Zellij
-        // Try to get pane information using available APIs
-        let plugin_ids = get_plugin_ids();
+        let mut discovered_panes = 0;
         
-        // Since we need to discover terminal panes (not just plugins), we'll use a different approach
-        // We'll try to discover panes by their expected names from the layout
+        // Iterate through all tabs and their panes
+        for (_tab_position, panes) in &pane_manifest.panes {
+            for pane_info in panes {
+                // Try to match the pane title to a role
+                if let Some(role) = Self::match_pane_name_to_role(&pane_info.title) {
+                    // Create the correct PaneId based on the pane type
+                    let pane_id = if pane_info.is_plugin {
+                        PaneId::Plugin(pane_info.id)
+                    } else {
+                        PaneId::Terminal(pane_info.id)
+                    };
+                    
+                    // Register the pane with its role
+                    self.pane_registry.insert(role, pane_id);
+                    discovered_panes += 1;
+                }
+            }
+        }
         
-        // Expected pane names from vibe.zsh layout:
-        let expected_panes = vec![
-            ("Task List", PaneRole::TaskList),
-            ("Overseer", PaneRole::Overseer), 
-            ("Review", PaneRole::Review),
-            ("Editor", PaneRole::Editor),
-            ("Commander", PaneRole::Commander),
-        ];
-        
-        // For now, we'll simulate discovery by creating mock pane IDs
-        // In a real implementation, we would use Zellij's API to get actual pane information
-        // This is a placeholder that will be replaced with actual pane discovery
-        
-        for (i, (pane_name, role)) in expected_panes.iter().enumerate() {
-            // Create a mock pane ID for demonstration
-            // In reality, this would come from Zellij's pane information
-            let mock_pane_id = PaneId::Terminal((i + 1) as u32);
-            
-            // Register the pane with its role
-            self.pane_registry.insert(*role, mock_pane_id);
+        if discovered_panes == 0 {
+            return Err(CommunicationError::PaneDiscoveryFailed(
+                "No matching panes found in current layout".to_string()
+            ));
         }
         
         Ok(())
+    }
+
+    /// Discover panes and map them to roles based on their names (fallback method)
+    pub fn discover_panes(&mut self) -> Result<(), CommunicationError> {
+        // This method is now a fallback that logs an error
+        // The real discovery should be done via discover_panes_with_manifest
+        Err(CommunicationError::PaneDiscoveryFailed(
+            "No pane manifest available. Use discover_panes_with_manifest instead.".to_string()
+        ))
     }
 
     /// Manually register a pane with a specific role
