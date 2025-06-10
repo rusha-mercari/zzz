@@ -30,7 +30,7 @@ impl MessageRouter {
         let mut discovered_panes = 0;
 
         // Iterate through all tabs and their panes
-        for (_tab_position, panes) in &pane_manifest.panes {
+        for panes in pane_manifest.panes.values() {
             for pane_info in panes {
                 // Try to match the pane title to a role
                 if let Some(role) = Self::match_pane_name_to_role(&pane_info.title) {
@@ -134,4 +134,3 @@ impl MessageRouter {
         }
     }
 }
-

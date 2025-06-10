@@ -5,7 +5,9 @@ mod notification;
 mod pane_role;
 mod workflow_phase;
 
-use communication::{Communication, CommunicationError, MessageEnvelope, MessageRouter, ParsedMessage};
+use communication::{
+    Communication, CommunicationError, MessageEnvelope, MessageRouter, ParsedMessage,
+};
 use coordination_message::CoordinationMessage;
 use file_system::{FileSystem, FileSystemError};
 use notification::Notification;
@@ -17,6 +19,7 @@ use zellij_tile::prelude::*;
 
 struct State {
     task_id: u32,
+    task_description: String,
     current_phase: WorkflowPhase,
     file_watcher: Option<Box<dyn Watcher>>,
     pending_notifications: Vec<Notification>,
@@ -31,6 +34,7 @@ impl Default for State {
     fn default() -> Self {
         Self {
             task_id: 0,
+            task_description: "Default task description".to_string(),
             current_phase: WorkflowPhase::Initializing,
             file_watcher: None,
             pending_notifications: Vec::new(),
@@ -148,23 +152,23 @@ impl State {
         // Create the directory structure first
         self.setup_task_directories()
             .map_err(FileSystemError::from)?;
-        
+
         // Ensure log files exist
         FileSystem::ensure_file_exists(self.get_coordinator_log_path())?;
         FileSystem::ensure_file_exists(self.get_overseer_log_path())?;
         FileSystem::ensure_file_exists(self.get_commander_log_path())?;
-        
+
         Ok(())
     }
 
     // === Communication Methods ===
 
     /// Send a coordination message to a specific pane by title
-    /// 
+    ///
     /// # Arguments
     /// * `message` - The coordination message to send
     /// * `target_pane_title` - Title of the target pane (e.g., "Overseer", "Commander")
-    /// 
+    ///
     /// # Returns
     /// * `Ok(())` if message was sent successfully
     /// * `Err(CommunicationError)` if sending failed
@@ -174,17 +178,11 @@ impl State {
         target_pane_title: &str,
     ) -> Result<(), CommunicationError> {
         // Create envelope with target pane
-        let envelope = MessageEnvelope::new_targeted(
-            message.clone(),
-            target_pane_title,
-            "zzz-coordinator",
-        );
+        let envelope =
+            MessageEnvelope::new_targeted(message.clone(), target_pane_title, "zzz-coordinator");
 
         // Log the outgoing message
-        let log_msg = format!(
-            "Sending message to '{}': {:?}",
-            target_pane_title, message
-        );
+        let log_msg = format!("Sending message to '{}': {:?}", target_pane_title, message);
         let _ = self.log_coordinator(&log_msg);
 
         // Send the message
@@ -198,10 +196,7 @@ impl State {
                 Ok(())
             }
             Err(e) => {
-                let error_msg = format!(
-                    "Failed to send message to '{}': {}",
-                    target_pane_title, e
-                );
+                let error_msg = format!("Failed to send message to '{}': {}", target_pane_title, e);
                 let _ = self.log_coordinator(&error_msg);
                 Err(e)
             }
@@ -209,10 +204,10 @@ impl State {
     }
 
     /// Broadcast a coordination message to all listening panes
-    /// 
+    ///
     /// # Arguments
     /// * `message` - The coordination message to broadcast
-    /// 
+    ///
     /// # Returns
     /// * `Ok(())` if message was sent successfully
     /// * `Err(CommunicationError)` if sending failed
@@ -243,7 +238,12 @@ impl State {
     }
 
     /// Handle incoming message payload with enhanced parsing
-    fn handle_incoming_message(&mut self, payload: &str, source: &str, _input_id: Option<String>) -> bool {
+    fn handle_incoming_message(
+        &mut self,
+        payload: &str,
+        source: &str,
+        _input_id: Option<String>,
+    ) -> bool {
         // Try to parse the payload using the new parsing logic
         match Communication::parse_incoming_message(payload) {
             Ok(ParsedMessage::Envelope(envelope)) => {
@@ -264,10 +264,10 @@ impl State {
     /// Handle a message in the modern envelope format
     fn handle_envelope_message(&mut self, envelope: MessageEnvelope, source: &str) -> bool {
         let message = &envelope.coordination_message;
-        
+
         // Store the coordination message
         self.received_messages.push(message.clone());
-        
+
         // Create display message with envelope info
         let display = if let Some(ref target) = envelope.target_pane {
             format!(
@@ -280,16 +280,16 @@ impl State {
                 source, message, envelope.sender, envelope.timestamp
             )
         };
-        
+
         self.last_message = Some(display.clone());
-        
+
         // Log the received envelope
         let log_msg = format!(
             "Received envelope from {}: target={:?}, sender={}, message={:?}",
             source, envelope.target_pane, envelope.sender, message
         );
         let _ = self.log_coordinator(&log_msg);
-        
+
         true // trigger re-render
     }
 
@@ -297,22 +297,22 @@ impl State {
     fn handle_legacy_message(&mut self, message: CoordinationMessage, source: &str) -> bool {
         self.received_messages.push(message.clone());
         self.last_message = Some(format!("Legacy from {}: {:?}", source, message));
-        
+
         // Log the legacy message
         let log_msg = format!("Received legacy message from {}: {:?}", source, message);
         let _ = self.log_coordinator(&log_msg);
-        
+
         true // trigger re-render
     }
 
     /// Handle a raw text message that couldn't be parsed as JSON
     fn handle_raw_message(&mut self, payload: &str, source: &str) -> bool {
         self.last_message = Some(format!("Raw from {}: {}", source, payload));
-        
+
         // Log the raw message
         let log_msg = format!("Received raw message from {}: {}", source, payload);
         let _ = self.log_coordinator(&log_msg);
-        
+
         true // trigger re-render
     }
 
@@ -324,7 +324,10 @@ impl State {
         message: CoordinationMessage,
         target_role: PaneRole,
     ) -> Result<(), CommunicationError> {
-        match self.message_router.route_message_to_role(&message, target_role) {
+        match self
+            .message_router
+            .route_message_to_role(&message, target_role)
+        {
             Ok(()) => {
                 let log_msg = format!(
                     "Successfully routed message to {:?}: {:?}",
@@ -342,10 +345,7 @@ impl State {
                 Err(CommunicationError::PaneNotFound(role))
             }
             Err(e) => {
-                let error_msg = format!(
-                    "Failed to route message to {:?}: {}",
-                    target_role, e
-                );
+                let error_msg = format!("Failed to route message to {:?}: {}", target_role, e);
                 let _ = self.log_coordinator(&error_msg);
                 Err(e)
             }
@@ -358,38 +358,38 @@ impl State {
         message: CoordinationMessage,
         target_roles: &[PaneRole],
     ) -> Vec<(PaneRole, Result<(), CommunicationError>)> {
-        let results = self.message_router.route_message_to_roles(&message, target_roles);
-        
+        let results = self
+            .message_router
+            .route_message_to_roles(&message, target_roles);
+
         // Log results
         for (role, result) in &results {
             match result {
                 Ok(()) => {
-                    let log_msg = format!(
-                        "Successfully routed message to {:?}: {:?}",
-                        role, message
-                    );
+                    let log_msg =
+                        format!("Successfully routed message to {:?}: {:?}", role, message);
                     let _ = self.log_coordinator(&log_msg);
                 }
                 Err(e) => {
-                    let error_msg = format!(
-                        "Failed to route message to {:?}: {}",
-                        role, e
-                    );
+                    let error_msg = format!("Failed to route message to {:?}: {}", role, e);
                     let _ = self.log_coordinator(&error_msg);
                 }
             }
         }
-        
+
         results
     }
 
     /// Broadcast a coordination message to all registered panes
-    fn broadcast_to_all_roles(&self, message: CoordinationMessage) -> Vec<(PaneRole, Result<(), CommunicationError>)> {
+    fn broadcast_to_all_roles(
+        &self,
+        message: CoordinationMessage,
+    ) -> Vec<(PaneRole, Result<(), CommunicationError>)> {
         let results = self.message_router.broadcast_to_all(&message);
-        
+
         let log_msg = format!("Broadcasting message to all roles: {:?}", message);
         let _ = self.log_coordinator(&log_msg);
-        
+
         // Log individual results
         for (role, result) in &results {
             match result {
@@ -403,16 +403,15 @@ impl State {
                 }
             }
         }
-        
+
         results
     }
-
 
     /// Discover and register panes based on their names/titles using current manifest
     fn discover_and_register_panes(&mut self) {
         let log_msg = "Attempting to discover panes...".to_string();
         let _ = self.log_coordinator(&log_msg);
-        
+
         if let Some(ref manifest) = self.pane_manifest {
             match self.message_router.discover_panes_with_manifest(manifest) {
                 Ok(()) => {
@@ -447,10 +446,10 @@ impl State {
 
     /// Send the initial StartPlanning message to the Overseer pane
     fn send_start_planning_message(&self) {
-        // Create a StartPlanning message with dynamic task info
+        // Create a StartPlanning message with configured task info
         let start_planning_msg = CoordinationMessage::StartPlanning {
             task_id: self.task_id,
-            task_description: "Implement collaborative AI development workflow".to_string(),
+            task_description: self.task_description.clone(),
         };
 
         // Try to send to Overseer pane using role-based routing
@@ -458,24 +457,27 @@ impl State {
             Ok(()) => {
                 let success_msg = "Successfully sent StartPlanning message to Overseer".to_string();
                 let _ = self.log_coordinator(&success_msg);
-                
+
                 // Update workflow phase to PlanningInProgress
                 // Note: This would need mutable self, so we'll log it for now
-                let phase_msg = "Workflow phase should transition to PlanningInProgress".to_string();
+                let phase_msg =
+                    "Workflow phase should transition to PlanningInProgress".to_string();
                 let _ = self.log_coordinator(&phase_msg);
             }
             Err(e) => {
                 let error_msg = format!("Failed to send StartPlanning message to Overseer: {}", e);
                 let _ = self.log_coordinator(&error_msg);
-                
+
                 // Fall back to direct pane targeting by name
                 match self.send_coordination_message(start_planning_msg, "Overseer") {
                     Ok(()) => {
-                        let fallback_msg = "Successfully sent StartPlanning via direct pane targeting".to_string();
+                        let fallback_msg =
+                            "Successfully sent StartPlanning via direct pane targeting".to_string();
                         let _ = self.log_coordinator(&fallback_msg);
                     }
                     Err(fallback_err) => {
-                        let fallback_error = format!("Both routing methods failed: {}", fallback_err);
+                        let fallback_error =
+                            format!("Both routing methods failed: {}", fallback_err);
                         let _ = self.log_coordinator(&fallback_error);
                     }
                 }
@@ -484,37 +486,63 @@ impl State {
     }
 }
 
-
 register_plugin!(State);
 
 // More info on plugins: https://zellij.dev/documentation/plugins
 
 impl ZellijPlugin for State {
-    fn load(&mut self, _configuration: BTreeMap<String, String>) {
+    fn load(&mut self, configuration: BTreeMap<String, String>) {
+        // Read configuration parameters
+        if let Some(task_id_str) = configuration.get("task_id") {
+            if let Ok(parsed_id) = task_id_str.parse::<u32>() {
+                self.task_id = parsed_id;
+                let _ = self.log_coordinator(&format!(
+                    "Loaded task_id from configuration: {}",
+                    self.task_id
+                ));
+            } else {
+                let _ = self.log_coordinator(&format!(
+                    "Warning: Invalid task_id in configuration: {}",
+                    task_id_str
+                ));
+            }
+        }
+
+        if let Some(task_desc) = configuration.get("task_description") {
+            self.task_description = task_desc.clone();
+            let _ = self.log_coordinator(&format!(
+                "Loaded task_description from configuration: {}",
+                self.task_description
+            ));
+        }
+
         // Request permissions needed for pane discovery and writing to panes
         request_permission(&[
             PermissionType::ReadApplicationState,
             PermissionType::WriteToStdin,
         ]);
-        
+
         // Subscribe to permission results and layout events
         subscribe(&[
             EventType::PermissionRequestResult,
             EventType::PaneUpdate,
             EventType::TabUpdate,
         ]);
-        
-        // Log the plugin initialization
-        let _ = self.log_coordinator("ZZZ Plugin loaded, requesting permissions...");
-        
+
         // Initialize task directories
         match self.ensure_task_files_exist() {
             Ok(()) => {
-                let success_msg = format!("Successfully created task directories for task {}", self.task_id);
+                let success_msg = format!(
+                    "Successfully created task directories for task {}",
+                    self.task_id
+                );
                 let _ = self.log_coordinator(&success_msg);
             }
             Err(e) => {
-                let error_msg = format!("CRITICAL: Failed to create task directories for task {}: {:?}", self.task_id, e);
+                let error_msg = format!(
+                    "CRITICAL: Failed to create task directories for task {}: {:?}",
+                    self.task_id, e
+                );
                 let _ = self.log_coordinator(&error_msg);
                 // Note: Plugin continues to run even if directory creation fails
                 // This allows the UI to show the error state
@@ -527,38 +555,40 @@ impl ZellijPlugin for State {
                 // Log that we received a permission result
                 let log_msg = format!("Permission result received: {:?}", _permission_status);
                 let _ = self.log_coordinator(&log_msg);
-                
+
                 // Check if all required permissions are granted
                 // For now, we'll assume they are if we get here
                 if !self.permissions_granted {
                     self.permissions_granted = true;
-                    let _ = self.log_coordinator("All permissions granted, waiting for pane manifest...");
+                    let _ = self
+                        .log_coordinator("All permissions granted, waiting for pane manifest...");
                 }
-                
+
                 true // trigger re-render to show permission status
             }
             Event::PaneUpdate(pane_manifest) => {
                 // Store the updated pane manifest
                 self.pane_manifest = Some(pane_manifest);
-                
-                let log_msg = "Received pane manifest update, attempting pane discovery...".to_string();
+
+                let log_msg =
+                    "Received pane manifest update, attempting pane discovery...".to_string();
                 let _ = self.log_coordinator(&log_msg);
-                
+
                 // Rediscover panes with the new manifest
                 self.discover_and_register_panes();
-                
+
                 // If we have permissions and found panes, send initial message
                 if self.permissions_granted && !self.get_registered_roles().is_empty() {
                     self.send_start_planning_message();
                 }
-                
+
                 true // trigger re-render to show updated pane information
             }
             Event::TabUpdate(_tab_info) => {
                 // Tab structure changed, request updated pane information
                 let log_msg = "Tab update received, pane manifest may be outdated".to_string();
                 let _ = self.log_coordinator(&log_msg);
-                
+
                 // Note: Zellij will send a PaneUpdate event after TabUpdate,
                 // so we don't need to do anything special here
                 true // trigger re-render
@@ -575,7 +605,11 @@ impl ZellijPlugin for State {
             }
             PipeSource::Plugin(plugin_id) => {
                 if let Some(payload) = pipe_message.payload {
-                    return self.handle_incoming_message(&payload, &format!("Plugin-{}", plugin_id), None);
+                    return self.handle_incoming_message(
+                        &payload,
+                        &format!("Plugin-{}", plugin_id),
+                        None,
+                    );
                 } else {
                     self.last_message = Some("Received empty message from plugin".to_string());
                     return true;
@@ -595,7 +629,7 @@ impl ZellijPlugin for State {
     fn render(&mut self, _rows: usize, _cols: usize) {
         // Create condensed status bar format
         // ZZZ | Phase: Init | Perms: ✓ | Panes: O,C,T,R,E (5/5) | Last: StartPlanning→Overseer | Msgs: 3
-        
+
         // Format phase
         let phase = match self.current_phase {
             WorkflowPhase::Initializing => "Init",
@@ -607,27 +641,32 @@ impl ZellijPlugin for State {
             WorkflowPhase::ReviewComplete => "Rev",
             WorkflowPhase::Finished => "Done",
         };
-        
+
         // Format permissions
-        let perms = if self.permissions_granted { "✓" } else { "✗" };
-        
+        let perms = if self.permissions_granted {
+            "✓"
+        } else {
+            "✗"
+        };
+
         // Format pane roles
         let registered_roles = self.get_registered_roles();
-        let pane_icons: Vec<String> = registered_roles.iter().map(|role| {
-            match role {
+        let pane_icons: Vec<String> = registered_roles
+            .iter()
+            .map(|role| match role {
                 PaneRole::Overseer => "O".to_string(),
                 PaneRole::Commander => "C".to_string(),
                 PaneRole::TaskList => "T".to_string(),
                 PaneRole::Review => "R".to_string(),
                 PaneRole::Editor => "E".to_string(),
-            }
-        }).collect();
+            })
+            .collect();
         let panes_display = if pane_icons.is_empty() {
             "None (0/5)".to_string()
         } else {
             format!("{} ({}/5)", pane_icons.join(","), pane_icons.len())
         };
-        
+
         // Format last message
         let last_msg = if let Some(ref msg) = self.last_message {
             // Extract key info from complex message strings
@@ -665,12 +704,14 @@ impl ZellijPlugin for State {
         } else {
             "None".to_string()
         };
-        
+
         // Format message count
         let msg_count = self.received_messages.len();
-        
+
         // Render single-line status bar
-        print!("ZZZ | Phase: {} | Perms: {} | Panes: {} | Last: {} | Msgs: {}", 
-               phase, perms, panes_display, last_msg, msg_count);
+        print!(
+            "ZZZ | Phase: {} | Perms: {} | Panes: {} | Last: {} | Msgs: {}",
+            phase, perms, panes_display, last_msg, msg_count
+        );
     }
 }

@@ -34,10 +34,11 @@ v() {
 
 zzz() {
     local taskid="$1"
-    local folder="$2"
+    local task_description="$2"
+    local folder="$3"
 
-    if [[ -z "$taskid" || -z "$folder" ]]; then
-        echo "Usage: zzz <taskid> <folder>"
+    if [[ -z "$taskid" || -z "$task_description" || -z "$folder" ]]; then
+        echo "Usage: zzz <taskid> <task_description> <folder>"
         return 1
     fi
 
@@ -77,6 +78,14 @@ zzz() {
         done
     fi
 
+    # Convert folder to absolute path
+    local abs_folder
+    abs_folder=$(realpath "$folder" 2>/dev/null)
+    if [[ $? -ne 0 || ! -d "$abs_folder" ]]; then
+        echo "Error: Directory '$folder' does not exist or cannot be resolved to absolute path"
+        return 1
+    fi
+
     local zellij_layout=$(cat <<EOF
 layout {
   // Root
@@ -104,8 +113,10 @@ layout {
     }
     // ZZZ Plugin Status Bar
     pane size=1 borderless=true {
-        plugin location="file:/Users/rusha/code/zellij/plugins/zzz/target/wasm32-wasip1/debug/zzz.wasm"
-
+        plugin location="file:/Users/rusha/code/zellij/plugins/zzz/target/wasm32-wasip1/debug/zzz.wasm" {
+            task_id "$taskid"
+            task_description "$task_description"
+        }
     }
   }
 }
@@ -113,6 +124,6 @@ EOF
 )
     local layout_file="/tmp/zellij_layout_${taskid}.kdl"
     echo "$zellij_layout" > "$layout_file"
-    zellij action new-tab --layout "$layout_file" --cwd "$folder"
+    zellij action new-tab --layout "$layout_file" --cwd "$abs_folder"
     rm "$layout_file"
 }

@@ -10,3 +10,7 @@
 - don't write unit tests
 
 - build target is wasm32-wasip1
+
+- use context7, zellij.dev/documentation and zellij github repos to research it's API and usage.
+
+- run `cargo fmt` before commiting to git

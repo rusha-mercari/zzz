@@ -241,6 +241,3 @@ impl FileSystem {
         Self::append_to_file(path, &entry)
     }
 }
-
-
-

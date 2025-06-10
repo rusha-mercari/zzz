@@ -1,8 +1,8 @@
 use zellij_tile::prelude::*;
 
-use crate::coordination_message::CoordinationMessage;
 use super::envelope::MessageEnvelope;
 use super::error::CommunicationError;
+use crate::coordination_message::CoordinationMessage;
 
 /// Communication utilities for the ZZZ plugin
 pub struct Communication;
