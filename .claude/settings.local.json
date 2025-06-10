@@ -10,7 +10,11 @@
       "Bash(find:*)",
       "Bash(cargo:*)",
       "Bash(./test_dirs)",
-      "Bash(./test_file_system)"
+      "Bash(./test_file_system)",
+      "WebFetch(domain:zellij.dev)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:zellij.dev)",
+      "WebFetch(domain:docs.rs)"
     ],
     "deny": []
   }

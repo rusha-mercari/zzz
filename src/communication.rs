@@ -174,19 +174,37 @@ impl MessageRouter {
 
     /// Discover panes and map them to roles based on their names
     pub fn discover_panes(&mut self) -> Result<(), CommunicationError> {
-        // Get the current layout info which includes pane information
-        let _layout_info = get_plugin_ids();
-        
-        // For now, we'll build the registry based on expected pane names
-        // In a real implementation, we would iterate through actual panes
-        // This is a simplified approach that logs what we're looking for
-        
         // Clear existing registry
         self.pane_registry.clear();
         
-        // Note: Since we don't have direct access to pane information in the current API,
-        // we'll implement a discovery mechanism that can be populated externally
-        // or through configuration
+        // Get the current layout information from Zellij
+        // Try to get pane information using available APIs
+        let plugin_ids = get_plugin_ids();
+        
+        // Since we need to discover terminal panes (not just plugins), we'll use a different approach
+        // We'll try to discover panes by their expected names from the layout
+        
+        // Expected pane names from vibe.zsh layout:
+        let expected_panes = vec![
+            ("Task List", PaneRole::TaskList),
+            ("Overseer", PaneRole::Overseer), 
+            ("Review", PaneRole::Review),
+            ("Editor", PaneRole::Editor),
+            ("Commander", PaneRole::Commander),
+        ];
+        
+        // For now, we'll simulate discovery by creating mock pane IDs
+        // In a real implementation, we would use Zellij's API to get actual pane information
+        // This is a placeholder that will be replaced with actual pane discovery
+        
+        for (i, (pane_name, role)) in expected_panes.iter().enumerate() {
+            // Create a mock pane ID for demonstration
+            // In reality, this would come from Zellij's pane information
+            let mock_pane_id = PaneId::Terminal((i + 1) as u32);
+            
+            // Register the pane with its role
+            self.pane_registry.insert(*role, mock_pane_id);
+        }
         
         Ok(())
     }

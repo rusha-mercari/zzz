@@ -80,25 +80,32 @@ zzz() {
     local zellij_layout=$(cat <<EOF
 layout {
   // Root
-  pane split_direction="vertical" {
-    // Info
-    pane split_direction="horizontal" {
-      pane name="Task List" command="$EDITOR" {
-        args ".zzz/task-${taskid}/todo-list.md"
-      }
-      pane name="Overseer" command="zsh" {
-        args "-i" "-c" "${env_prefix}v codex"
-      }
-      pane name="Review" command="$EDITOR" {
-        args ".zzz/task-${taskid}/review.md"
-      }
+  pane split_direction="horizontal" {
+    pane split_direction="vertical" {
+        // Info
+        pane split_direction="horizontal" {
+        pane name="Task List" command="$EDITOR" {
+            args ".zzz/task-${taskid}/todo-list.md"
+        }
+        pane name="Overseer" command="zsh" {
+            args "-i" "-c" "${env_prefix}v codex"
+        }
+        pane name="Review" command="$EDITOR" {
+            args ".zzz/task-${taskid}/review.md"
+        }
+        }
+        // Main
+        pane split_direction="horizontal" size="70%" {
+        pane size="60%" name="Editor" command="$EDITOR"
+        pane size="40%" name="Commander" command="zsh" {
+            args "-i" "-c" "${env_prefix}v claude"
+        }
+        }
     }
-    // Main
-    pane split_direction="horizontal" size="70%" {
-      pane size="60%" name="Editor" command="$EDITOR"
-      pane size="40%" name="Commander" command="zsh" {
-        args "-i" "-c" "${env_prefix}v claude"
-      }
+    // ZZZ Plugin Status Bar
+    pane size=1 borderless=true {
+        plugin location="file:/Users/rusha/code/zellij/plugins/zzz/target/wasm32-wasip1/debug/zzz.wasm"
+
     }
   }
 }

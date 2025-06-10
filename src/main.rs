@@ -446,6 +446,44 @@ impl State {
     fn is_role_registered(&self, role: &PaneRole) -> bool {
         self.message_router.is_role_registered(role)
     }
+
+    /// Send the initial StartPlanning message to the Overseer pane
+    fn send_start_planning_message(&self) {
+        // Create a StartPlanning message with dynamic task info
+        let start_planning_msg = CoordinationMessage::StartPlanning {
+            task_id: self.task_id,
+            task_description: "Implement collaborative AI development workflow".to_string(),
+        };
+
+        // Try to send to Overseer pane using role-based routing
+        match self.route_message_to_role(start_planning_msg.clone(), PaneRole::Overseer) {
+            Ok(()) => {
+                let success_msg = "Successfully sent StartPlanning message to Overseer".to_string();
+                let _ = self.log_coordinator(&success_msg);
+                
+                // Update workflow phase to PlanningInProgress
+                // Note: This would need mutable self, so we'll log it for now
+                let phase_msg = "Workflow phase should transition to PlanningInProgress".to_string();
+                let _ = self.log_coordinator(&phase_msg);
+            }
+            Err(e) => {
+                let error_msg = format!("Failed to send StartPlanning message to Overseer: {}", e);
+                let _ = self.log_coordinator(&error_msg);
+                
+                // Fall back to direct pane targeting by name
+                match self.send_coordination_message(start_planning_msg, "Overseer") {
+                    Ok(()) => {
+                        let fallback_msg = "Successfully sent StartPlanning via direct pane targeting".to_string();
+                        let _ = self.log_coordinator(&fallback_msg);
+                    }
+                    Err(fallback_err) => {
+                        let fallback_error = format!("Both routing methods failed: {}", fallback_err);
+                        let _ = self.log_coordinator(&fallback_error);
+                    }
+                }
+            }
+        }
+    }
 }
 
 
@@ -488,6 +526,9 @@ impl ZellijPlugin for State {
                     self.permissions_granted = true;
                     let _ = self.log_coordinator("All permissions granted, starting pane discovery...");
                     self.discover_and_register_panes();
+                    
+                    // After successful pane registration, auto-send StartPlanning message
+                    self.send_start_planning_message();
                 }
                 
                 true // trigger re-render to show permission status
@@ -522,72 +563,84 @@ impl ZellijPlugin for State {
         false
     }
     fn render(&mut self, _rows: usize, _cols: usize) {
-        // Display plugin header
-        println!("┌─ ZZZ Plugin ─┐");
-        println!("│ Phase: {:?}", self.current_phase);
-        println!("│ Task ID: {}", self.task_id);
-        println!("│ Permissions: {}", if self.permissions_granted { "✓" } else { "✗" });
+        // Create condensed status bar format
+        // ZZZ | Phase: Init | Perms: ✓ | Panes: O,C,T,R,E (5/5) | Last: StartPlanning→Overseer | Msgs: 3
         
-        // Display registered pane roles
+        // Format phase
+        let phase = match self.current_phase {
+            WorkflowPhase::Initializing => "Init",
+            WorkflowPhase::PlanningInProgress => "Plan",
+            WorkflowPhase::PlanReady => "Plan",
+            WorkflowPhase::ImplementationInProgress => "Impl",
+            WorkflowPhase::ImplementationComplete => "Impl",
+            WorkflowPhase::ReviewInProgress => "Rev",
+            WorkflowPhase::ReviewComplete => "Rev",
+            WorkflowPhase::Finished => "Done",
+        };
+        
+        // Format permissions
+        let perms = if self.permissions_granted { "✓" } else { "✗" };
+        
+        // Format pane roles
         let registered_roles = self.get_registered_roles();
-        if !registered_roles.is_empty() {
-            println!("│ Registered Panes: {:?}", registered_roles);
-        } else {
-            println!("│ No panes registered yet");
-        }
-        
-        // Display last received message
-        if let Some(ref message) = self.last_message {
-            println!("│");
-            println!("│ Last Message:");
-            println!("│ {}", message);
-        } else {
-            println!("│ Waiting for messages...");
-        }
-        
-        // Display message count
-        println!("│ Total messages: {}", self.received_messages.len());
-        
-        // Display recent coordination messages (last 3)
-        if !self.received_messages.is_empty() {
-            println!("│");
-            println!("│ Recent Messages:");
-            for (i, msg) in self.received_messages.iter().rev().take(3).enumerate() {
-                match msg {
-                    CoordinationMessage::StartPlanning { task_id, task_description } => {
-                        println!("│ {}: StartPlanning({}): {}", 
-                                self.received_messages.len() - i, task_id, task_description);
-                    }
-                    _ => {
-                        println!("│ {}: {:?}", self.received_messages.len() - i, msg);
-                    }
-                }
+        let pane_icons: Vec<String> = registered_roles.iter().map(|role| {
+            match role {
+                PaneRole::Overseer => "O".to_string(),
+                PaneRole::Commander => "C".to_string(),
+                PaneRole::TaskList => "T".to_string(),
+                PaneRole::Review => "R".to_string(),
+                PaneRole::Editor => "E".to_string(),
             }
-        }
+        }).collect();
+        let panes_display = if pane_icons.is_empty() {
+            "None (0/5)".to_string()
+        } else {
+            format!("{} ({}/5)", pane_icons.join(","), pane_icons.len())
+        };
         
-        println!("└─────────────┘");
+        // Format last message
+        let last_msg = if let Some(ref msg) = self.last_message {
+            // Extract key info from complex message strings
+            if msg.contains("StartPlanning") && msg.contains("→") {
+                "StartPlanning→Overseer".to_string()
+            } else if msg.contains("Envelope from") && msg.contains("→") {
+                // Extract "from source → target: MessageType"
+                if let Some(arrow_pos) = msg.find(" → ") {
+                    if let Some(colon_pos) = msg[arrow_pos..].find(": ") {
+                        let start = arrow_pos + 3;
+                        let end = arrow_pos + colon_pos;
+                        let target = &msg[start..end];
+                        if let Some(msg_start) = msg.find(": ") {
+                            if let Some(msg_type) = msg[msg_start + 2..].split('(').next() {
+                                format!("{}→{}", msg_type, target)
+                            } else {
+                                "Message→Target".to_string()
+                            }
+                        } else {
+                            format!("Msg→{}", target)
+                        }
+                    } else {
+                        "Message→Unknown".to_string()
+                    }
+                } else {
+                    "Recent".to_string()
+                }
+            } else if msg.contains("Broadcast") {
+                "Broadcast*All".to_string()
+            } else if msg.contains("Raw from") {
+                "Raw→Plugin".to_string()
+            } else {
+                "Recent".to_string()
+            }
+        } else {
+            "None".to_string()
+        };
         
-        // Display instructions
-        println!();
-        println!("=== Communication Examples ===");
-        println!();
-        println!("1. Raw text message:");
-        println!("zellij pipe --plugin file:target/wasm32-wasip1/debug/zzz.wasm --name test -- 'Hello'");
-        println!();
-        println!("2. Legacy format:");
-        println!(r#"zellij pipe --plugin file:target/wasm32-wasip1/debug/zzz.wasm --name coordination -- '{{"StartPlanning":{{"task_id":123,"task_description":"Legacy test"}}}}'"#);
-        println!();
-        println!("3. Modern envelope (targeted):");
-        println!(r#"zellij pipe --plugin file:target/wasm32-wasip1/debug/zzz.wasm --name coordination -- '{{"target_pane":"Overseer","coordination_message":{{"StartPlanning":{{"task_id":123,"task_description":"Targeted test"}}}},"sender":"cli","timestamp":1234567890}}'"#);
-        println!();
-        println!("4. Modern envelope (broadcast):");
-        println!(r#"zellij pipe --plugin file:target/wasm32-wasip1/debug/zzz.wasm --name coordination -- '{{"target_pane":null,"coordination_message":{{"PhaseTransition":{{"from":"Initializing","to":"PlanningInProgress"}}}},"sender":"cli","timestamp":1234567890}}'"#);
-        println!();
-        println!("=== Message Routing Features ===");
-        println!("- Permission-based pane discovery");
-        println!("- Role-based message routing (Overseer, Commander, TaskList, Review, Editor)");
-        println!("- Automatic pane name to role mapping");
-        println!("- Error logging for missing panes");
-        println!("- Multi-role broadcasting support");
+        // Format message count
+        let msg_count = self.received_messages.len();
+        
+        // Render single-line status bar
+        print!("ZZZ | Phase: {} | Perms: {} | Panes: {} | Last: {} | Msgs: {}", 
+               phase, perms, panes_display, last_msg, msg_count);
     }
 }
