@@ -28,6 +28,7 @@ struct State {
     received_messages: Vec<CoordinationMessage>,
     last_message: Option<String>,
     message_router: MessageRouter<ZellijServiceImpl>,
+    communication: Communication<ZellijServiceImpl>,
     permissions_granted: bool,
     pane_manifest: Option<PaneManifest>,
 }
@@ -43,6 +44,7 @@ impl Default for State {
             received_messages: Vec::new(),
             last_message: None,
             message_router: MessageRouter::new(ZellijServiceImpl),
+            communication: Communication::new(ZellijServiceImpl),
             permissions_granted: false,
             pane_manifest: None,
         }
@@ -188,7 +190,7 @@ impl State {
         let _ = self.log_coordinator(&log_msg);
 
         // Send the message
-        match Communication::send_pipe_message(&envelope) {
+        match self.communication.send_pipe_message(&envelope) {
             Ok(()) => {
                 let success_msg = format!(
                     "Successfully sent message to '{}': {:?}",
@@ -225,7 +227,7 @@ impl State {
         let _ = self.log_coordinator(&log_msg);
 
         // Send the message
-        match Communication::send_pipe_message(&envelope) {
+        match self.communication.send_pipe_message(&envelope) {
             Ok(()) => {
                 let success_msg = format!("Successfully broadcast message: {:?}", message);
                 let _ = self.log_coordinator(&success_msg);
@@ -247,7 +249,7 @@ impl State {
         _input_id: Option<String>,
     ) -> bool {
         // Try to parse the payload using the new parsing logic
-        match Communication::parse_incoming_message(payload) {
+        match Communication::<ZellijServiceImpl>::parse_incoming_message(payload) {
             Ok(ParsedMessage::Envelope(envelope)) => {
                 // Handle modern envelope format
                 self.handle_envelope_message(envelope, source)
