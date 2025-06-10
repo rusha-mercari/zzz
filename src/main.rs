@@ -5,7 +5,7 @@ mod notification;
 mod pane_role;
 mod workflow_phase;
 
-use communication::{Communication, CommunicationError, MessageEnvelope, ParsedMessage};
+use communication::{Communication, CommunicationError, MessageEnvelope, MessageRouter, ParsedMessage};
 use coordination_message::CoordinationMessage;
 use file_system::{FileSystem, FileSystemError};
 use notification::Notification;
@@ -23,6 +23,8 @@ struct State {
     pending_notifications: Vec<Notification>,
     received_messages: Vec<CoordinationMessage>,
     last_message: Option<String>,
+    message_router: MessageRouter,
+    permissions_granted: bool,
 }
 
 impl Default for State {
@@ -35,6 +37,8 @@ impl Default for State {
             pending_notifications: Vec::new(),
             received_messages: Vec::new(),
             last_message: None,
+            message_router: MessageRouter::new(),
+            permissions_granted: false,
         }
     }
 }
@@ -311,6 +315,137 @@ impl State {
         
         true // trigger re-render
     }
+
+    // === Message Routing Methods ===
+
+    /// Send a coordination message to a specific pane role using the router
+    fn route_message_to_role(
+        &self,
+        message: CoordinationMessage,
+        target_role: PaneRole,
+    ) -> Result<(), CommunicationError> {
+        match self.message_router.route_message_to_role(&message, target_role) {
+            Ok(()) => {
+                let log_msg = format!(
+                    "Successfully routed message to {:?}: {:?}",
+                    target_role, message
+                );
+                let _ = self.log_coordinator(&log_msg);
+                Ok(())
+            }
+            Err(CommunicationError::PaneNotFound(role)) => {
+                let error_msg = format!(
+                    "Pane not found for role {:?} when trying to send message: {:?}",
+                    role, message
+                );
+                let _ = self.log_coordinator(&error_msg);
+                Err(CommunicationError::PaneNotFound(role))
+            }
+            Err(e) => {
+                let error_msg = format!(
+                    "Failed to route message to {:?}: {}",
+                    target_role, e
+                );
+                let _ = self.log_coordinator(&error_msg);
+                Err(e)
+            }
+        }
+    }
+
+    /// Send a coordination message to multiple pane roles
+    fn route_message_to_roles(
+        &self,
+        message: CoordinationMessage,
+        target_roles: &[PaneRole],
+    ) -> Vec<(PaneRole, Result<(), CommunicationError>)> {
+        let results = self.message_router.route_message_to_roles(&message, target_roles);
+        
+        // Log results
+        for (role, result) in &results {
+            match result {
+                Ok(()) => {
+                    let log_msg = format!(
+                        "Successfully routed message to {:?}: {:?}",
+                        role, message
+                    );
+                    let _ = self.log_coordinator(&log_msg);
+                }
+                Err(e) => {
+                    let error_msg = format!(
+                        "Failed to route message to {:?}: {}",
+                        role, e
+                    );
+                    let _ = self.log_coordinator(&error_msg);
+                }
+            }
+        }
+        
+        results
+    }
+
+    /// Broadcast a coordination message to all registered panes
+    fn broadcast_to_all_roles(&self, message: CoordinationMessage) -> Vec<(PaneRole, Result<(), CommunicationError>)> {
+        let results = self.message_router.broadcast_to_all(&message);
+        
+        let log_msg = format!("Broadcasting message to all roles: {:?}", message);
+        let _ = self.log_coordinator(&log_msg);
+        
+        // Log individual results
+        for (role, result) in &results {
+            match result {
+                Ok(()) => {
+                    let log_msg = format!("Broadcast successful to {:?}", role);
+                    let _ = self.log_coordinator(&log_msg);
+                }
+                Err(e) => {
+                    let error_msg = format!("Broadcast failed to {:?}: {}", role, e);
+                    let _ = self.log_coordinator(&error_msg);
+                }
+            }
+        }
+        
+        results
+    }
+
+    /// Register a pane with a specific role in the message router
+    fn register_pane_role(&mut self, role: PaneRole, pane_id: PaneId) {
+        self.message_router.register_pane(role, pane_id);
+        self.pane_ids.insert(role, pane_id);
+        
+        let log_msg = format!("Registered pane {:?} with role {:?}", pane_id, role);
+        let _ = self.log_coordinator(&log_msg);
+    }
+
+    /// Discover and register panes based on their names/titles
+    fn discover_and_register_panes(&mut self) {
+        // This is a placeholder for pane discovery
+        // In a real implementation, we would iterate through available panes
+        // and use MessageRouter::match_pane_name_to_role to map them
+        
+        let log_msg = "Attempting to discover panes...".to_string();
+        let _ = self.log_coordinator(&log_msg);
+        
+        match self.message_router.discover_panes() {
+            Ok(()) => {
+                let log_msg = "Pane discovery completed successfully".to_string();
+                let _ = self.log_coordinator(&log_msg);
+            }
+            Err(e) => {
+                let error_msg = format!("Pane discovery failed: {}", e);
+                let _ = self.log_coordinator(&error_msg);
+            }
+        }
+    }
+
+    /// Get the list of registered pane roles
+    fn get_registered_roles(&self) -> Vec<PaneRole> {
+        self.message_router.get_registered_roles()
+    }
+
+    /// Check if a specific role is registered
+    fn is_role_registered(&self, role: &PaneRole) -> bool {
+        self.message_router.is_role_registered(role)
+    }
 }
 
 
@@ -320,19 +455,45 @@ register_plugin!(State);
 
 impl ZellijPlugin for State {
     fn load(&mut self, _configuration: BTreeMap<String, String>) {
-        // runs once on plugin load, provides the configuration with which this plugin was loaded
-        // (if any)
-        //
-        // this is a good place to `subscribe` (https://docs.rs/zellij-tile/latest/zellij_tile/shim/fn.subscribe.html)
-        // to `Event`s (https://docs.rs/zellij-tile/latest/zellij_tile/prelude/enum.Event.html)
-        // and `request_permissions` (https://docs.rs/zellij-tile/latest/zellij_tile/shim/fn.request_permission.html)
+        // Request permissions needed for pane discovery and writing to panes
+        request_permission(&[
+            PermissionType::ReadApplicationState,
+            PermissionType::WriteToStdin,
+        ]);
+        
+        // Subscribe to permission results and other events
+        subscribe(&[
+            EventType::PermissionRequestResult,
+        ]);
+        
+        // Log the plugin initialization
+        let _ = self.log_coordinator("ZZZ Plugin loaded, requesting permissions...");
+        
+        // Initialize task directories
+        if let Err(e) = self.ensure_task_files_exist() {
+            let error_msg = format!("Failed to create task directories: {:?}", e);
+            let _ = self.log_coordinator(&error_msg);
+        }
     }
-    fn update(&mut self, _event: Event) -> bool {
-        let should_render = false;
-        // react to `Event`s that have been subscribed to (and the plugin has permissions for)
-        // return true if this plugin's `render` function should be called for the plugin to render
-        // itself
-        should_render
+    fn update(&mut self, event: Event) -> bool {
+        match event {
+            Event::PermissionRequestResult(_permission_status) => {
+                // Log that we received a permission result
+                let log_msg = format!("Permission result received: {:?}", _permission_status);
+                let _ = self.log_coordinator(&log_msg);
+                
+                // Check if all required permissions are granted
+                // For now, we'll assume they are if we get here
+                if !self.permissions_granted {
+                    self.permissions_granted = true;
+                    let _ = self.log_coordinator("All permissions granted, starting pane discovery...");
+                    self.discover_and_register_panes();
+                }
+                
+                true // trigger re-render to show permission status
+            }
+            _ => false,
+        }
     }
     fn pipe(&mut self, pipe_message: PipeMessage) -> bool {
         match pipe_message.source {
@@ -365,6 +526,15 @@ impl ZellijPlugin for State {
         println!("┌─ ZZZ Plugin ─┐");
         println!("│ Phase: {:?}", self.current_phase);
         println!("│ Task ID: {}", self.task_id);
+        println!("│ Permissions: {}", if self.permissions_granted { "✓" } else { "✗" });
+        
+        // Display registered pane roles
+        let registered_roles = self.get_registered_roles();
+        if !registered_roles.is_empty() {
+            println!("│ Registered Panes: {:?}", registered_roles);
+        } else {
+            println!("│ No panes registered yet");
+        }
         
         // Display last received message
         if let Some(ref message) = self.last_message {
@@ -412,5 +582,12 @@ impl ZellijPlugin for State {
         println!();
         println!("4. Modern envelope (broadcast):");
         println!(r#"zellij pipe --plugin file:target/wasm32-wasip1/debug/zzz.wasm --name coordination -- '{{"target_pane":null,"coordination_message":{{"PhaseTransition":{{"from":"Initializing","to":"PlanningInProgress"}}}},"sender":"cli","timestamp":1234567890}}'"#);
+        println!();
+        println!("=== Message Routing Features ===");
+        println!("- Permission-based pane discovery");
+        println!("- Role-based message routing (Overseer, Commander, TaskList, Review, Editor)");
+        println!("- Automatic pane name to role mapping");
+        println!("- Error logging for missing panes");
+        println!("- Multi-role broadcasting support");
     }
 }

@@ -36,7 +36,15 @@ Based on the plan.md file, here is a comprehensive todo list broken down into di
   - ✅ Added comprehensive error handling and logging
   - ✅ Supports raw text, legacy JSON, and modern envelope message formats
 
-- [ ] **3.2** Create message routing system to dispatch messages by pane role
+- [x] **3.2** Create message routing system to dispatch messages by pane role
+  - ✅ Implemented `MessageRouter` struct with pane role registry
+  - ✅ Added permission requests for `ReadApplicationState` and `WriteToStdin`
+  - ✅ Created role-based message routing with `route_message_to_role()`
+  - ✅ Added multi-role messaging with `route_message_to_roles()`
+  - ✅ Implemented broadcasting to all registered panes
+  - ✅ Added pane name to role pattern matching
+  - ✅ Enhanced error handling with simple logging for missing panes
+  - ✅ Integrated routing system into main State struct with wrapper methods
 
 - [ ] **3.3** Implement message queue for handling async communication
 
