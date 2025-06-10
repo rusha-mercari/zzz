@@ -11,14 +11,13 @@ use file_system::{FileSystem, FileSystemError};
 use notification::Notification;
 use notify::Watcher;
 use pane_role::PaneRole;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use workflow_phase::WorkflowPhase;
 use zellij_tile::prelude::*;
 
 struct State {
     task_id: u32,
     current_phase: WorkflowPhase,
-    pane_ids: HashMap<PaneRole, PaneId>,
     file_watcher: Option<Box<dyn Watcher>>,
     pending_notifications: Vec<Notification>,
     received_messages: Vec<CoordinationMessage>,
@@ -33,7 +32,6 @@ impl Default for State {
         Self {
             task_id: 0,
             current_phase: WorkflowPhase::Initializing,
-            pane_ids: HashMap::new(),
             file_watcher: None,
             pending_notifications: Vec::new(),
             received_messages: Vec::new(),
@@ -409,14 +407,6 @@ impl State {
         results
     }
 
-    /// Register a pane with a specific role in the message router
-    fn register_pane_role(&mut self, role: PaneRole, pane_id: PaneId) {
-        self.message_router.register_pane(role, pane_id);
-        self.pane_ids.insert(role, pane_id);
-        
-        let log_msg = format!("Registered pane {:?} with role {:?}", pane_id, role);
-        let _ = self.log_coordinator(&log_msg);
-    }
 
     /// Discover and register panes based on their names/titles using current manifest
     fn discover_and_register_panes(&mut self) {

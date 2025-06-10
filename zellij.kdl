@@ -1,16 +1,35 @@
 layout {
     cwd "."
-    pane size=1 borderless=true {
-        plugin location="tab-bar"
-    }
-    pane edit="src/main.rs" size="60%"
-    pane
-    pane size=1 borderless=true {
-        plugin location="status-bar"
+    // Root
+    pane split_direction="horizontal" {
+        pane split_direction="vertical" {
+            // Info
+            pane split_direction="horizontal" {
+                pane name="Task List" command="$EDITOR" {
+                    args ".zzz/task-${taskid}/todo-list.md"
+                }
+                pane name="Overseer"
+                pane name="Review" command="$EDITOR" {
+                    args ".zzz/task-${taskid}/review.md"
+                }
+            }
+            // Main
+            pane split_direction="horizontal" size="70%" {
+                pane size="60%" name="Editor" command="$EDITOR"
+                pane size="40%" name="Commander"
+            }
+        }
+        // ZZZ Plugin Status Bar
+        pane size=1 borderless=true {
+            plugin location="file:/Users/rusha/code/zellij/plugins/zzz/target/wasm32-wasip1/debug/zzz.wasm"
+
+        }
+
+        pane
     }
     floating_panes {
-      pane {
-        plugin location="https://github.com/zellij-org/develop-rust-plugin/releases/download/v0.3.0/develop-rust-plugin.wasm"
-      }
+        pane {
+            plugin location="https://github.com/zellij-org/develop-rust-plugin/releases/download/v0.3.0/develop-rust-plugin.wasm"
+        }
     }
 }

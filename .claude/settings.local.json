@@ -14,7 +14,9 @@
       "WebFetch(domain:zellij.dev)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:zellij.dev)",
-      "WebFetch(domain:docs.rs)"
+      "WebFetch(domain:docs.rs)",
+      "Bash(mkdir:*)",
+      "Bash(rg:*)"
     ],
     "deny": []
   }
