@@ -52,45 +52,23 @@ zzz() {
         return 1
     fi
 
-    local -A op_session_env_map 
-
+    # Check if logged in to 1Password
     if ! op account get &>/dev/null; then
-        echo "Not signed in to 1Password. Signing in now..." >&2
-        local signin_output=$(op signin 2>/dev/null)
-        if [[ $? -ne 0 || -z "$signin_output" ]]; then
+        echo "Not signed in to 1Password. Signing in..." >&2
+        if ! eval $(op signin); then
             echo "Error: Failed to sign in to 1Password" >&2
             return 1
         fi
-        eval "$signin_output" 
-        echo "$signin_output" | while IFS= read -r line; do
-            if [[ "$line" =~ ^export\ ([A-Z_]+)=[\'\"]?([^\'\"]*)[\'\"]?\;$ ]]; then
-                local var_name="${BASH_REMATCH[1]}"
-                local var_value="${BASH_REMATCH[2]}"
-                op_session_env_map["$var_name"]="$var_value"
-            fi
-        done
-        if [[ ${#op_session_env_map[@]} -eq 0 ]]; then
-            echo "Warning: No 1Password session variables captured. Panes might ask for login." >&2
-        fi
-    else
-        echo "Already signed in to 1Password (example account)." >&2
-        for var_name in $(env | grep '^OP_SESSION_' | cut -d'=' -f1); do
-            local var_value="${(P)var_name}"
-            if [[ -n "$var_value" ]]; then
-                op_session_env_map["$var_name"]="$var_value"
-            fi
-        done
     fi
 
-    # Generate environment variable prefix for commands
-    local env_prefix=""
-    if [[ ${#op_session_env_map[@]} -gt 0 ]]; then
-        for var_name in "${(@k)op_session_env_map}"; do
-            local var_value="${op_session_env_map[$var_name]}"
-            local clean_var_name="${var_name//\"/}"
-            env_prefix+="$clean_var_name='$var_value' "
-        done
+    # Fetch API key
+    local api_key=$(op read "op://Employee/litellm/credential" 2>/dev/null)
+    if [[ -z "$api_key" ]]; then
+        echo "Error: Failed to retrieve API key from 1Password" >&2
+        return 1
     fi
+
+    local litellm_url="https://litellm.example.in"
 
     # Convert folder to absolute path
     local abs_folder
@@ -110,19 +88,15 @@ layout {
         pane name="Task List" command="$EDITOR" {
             args ".zzz/task-${taskid}/todo-list.md"
         }
-        pane name="Overseer" command="zsh" {
-            args "-i" "-c" "${env_prefix}v codex"
-        }
+        pane name="Overseer"
         pane name="Review" command="$EDITOR" {
             args ".zzz/task-${taskid}/review.md"
         }
         }
         // Main
         pane split_direction="horizontal" size="70%" {
-        pane size="60%" name="Editor" command="$EDITOR"
-        pane size="40%" name="Commander" command="zsh" {
-            args "-i" "-c" "${env_prefix}v claude"
-        }
+          pane size="60%" name="Editor" command="$EDITOR"
+          pane size="40%" name="Commander"
         }
     }
     // ZZZ Plugin Status Bar
@@ -130,6 +104,8 @@ layout {
         plugin location="file:/Users/rusha/code/zellij/plugins/zzz/target/wasm32-wasip1/debug/zzz.wasm" {
             task_id "$taskid"
             task_description "$task_description"
+            api_key "$api_key"
+            litellm_url "$litellm_url"
         }
     }
   }

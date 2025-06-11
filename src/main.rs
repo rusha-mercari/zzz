@@ -1,6 +1,7 @@
 mod communication;
 mod coordination_message;
 mod file_system;
+mod litellm_config;
 mod notification;
 mod pane_role;
 mod workflow_phase;
@@ -11,6 +12,7 @@ use communication::{
 };
 use coordination_message::CoordinationMessage;
 use file_system::{FileSystem, FileSystemError};
+use litellm_config::LiteLLMConfig;
 use notification::Notification;
 use notify::Watcher;
 use pane_role::PaneRole;
@@ -31,6 +33,7 @@ struct State {
     communication: Communication<ZellijServiceImpl>,
     permissions_granted: bool,
     pane_manifest: Option<PaneManifest>,
+    litellm_config: LiteLLMConfig,
 }
 
 impl Default for State {
@@ -47,6 +50,7 @@ impl Default for State {
             communication: Communication::new(ZellijServiceImpl),
             permissions_granted: false,
             pane_manifest: None,
+            litellm_config: LiteLLMConfig::default(),
         }
     }
 }
@@ -517,6 +521,20 @@ impl ZellijPlugin for State {
             let _ = self.log_coordinator(&format!(
                 "Loaded task_description from configuration: {}",
                 self.task_description
+            ));
+        }
+
+        // Load LiteLLM configuration
+        if let Some(api_key) = configuration.get("api_key") {
+            self.litellm_config.api_key = api_key.clone();
+            let _ = self.log_coordinator("Loaded API key from configuration");
+        }
+
+        if let Some(url) = configuration.get("litellm_url") {
+            self.litellm_config.url = url.clone();
+            let _ = self.log_coordinator(&format!(
+                "Loaded LiteLLM URL from configuration: {}",
+                self.litellm_config.url
             ));
         }
 
