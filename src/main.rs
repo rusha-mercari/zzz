@@ -452,43 +452,130 @@ impl State {
         self.message_router.is_role_registered(role)
     }
 
-    /// Send the initial StartPlanning message to the Overseer pane
-    fn send_start_planning_message(&self) {
-        // Create a StartPlanning message with configured task info
-        let start_planning_msg = CoordinationMessage::StartPlanning {
-            task_id: self.task_id,
-            task_description: self.task_description.clone(),
-        };
+    /// Transition workflow phase to PlanningInProgress with validation
+    fn transition_to_planning_in_progress(&mut self) -> Result<(), String> {
+        // Validate current state
+        if self.current_phase != WorkflowPhase::Initializing {
+            return Err(format!(
+                "Invalid state transition: can only transition to PlanningInProgress from Initializing, currently in {:?}",
+                self.current_phase
+            ));
+        }
 
-        // Try to send to Overseer pane using role-based routing
-        match self.route_message_to_role(start_planning_msg.clone(), PaneRole::Overseer) {
+        // Validate prerequisites
+        if !self.permissions_granted {
+            return Err("Cannot transition to planning: permissions not granted".to_string());
+        }
+
+        if self.get_registered_roles().is_empty() {
+            return Err("Cannot transition to planning: no panes discovered".to_string());
+        }
+
+        if self.litellm_config.api_key.is_empty() || self.litellm_config.url.is_empty() {
+            return Err(
+                "Cannot transition to planning: LiteLLM configuration incomplete".to_string(),
+            );
+        }
+
+        // Perform the transition
+        let old_phase = self.current_phase.clone();
+        self.current_phase = WorkflowPhase::PlanningInProgress;
+
+        // Log the transition
+        let log_msg = format!(
+            "State transition: {:?} → {:?} at timestamp {}",
+            old_phase,
+            self.current_phase,
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs()
+        );
+        let _ = self.log_coordinator(&log_msg);
+
+        Ok(())
+    }
+
+    /// Execute a command in a specific pane by role
+    fn execute_command_in_pane(
+        &self,
+        command: &str,
+        target_role: PaneRole,
+    ) -> Result<(), CommunicationError> {
+        // Log the command execution attempt
+        let log_msg = format!("Executing command in {:?} pane: {}", target_role, command);
+        let _ = self.log_coordinator(&log_msg);
+
+        // Write the command to the target pane (with newline to execute)
+        let command_with_newline = format!("{}\n", command);
+        self.message_router
+            .execute_command_in_role(&command_with_newline, target_role)?;
+
+        // Log successful execution
+        let success_msg = format!("Successfully sent command to {:?} pane", target_role);
+        let _ = self.log_coordinator(&success_msg);
+
+        Ok(())
+    }
+
+    /// Build the codex command with environment variables and enhanced prompt
+    fn build_codex_command(&self) -> String {
+        let todo_list_path = format!(".zzz/task-{}/todo-list.md", self.task_id);
+
+        let prompt = format!(
+            "Create a detailed step-by-step todo list for implementing the following feature: {}\n\n\
+            Requirements:\n\
+            - Save the todo list as a markdown file at {}\n\
+            - Use checkbox format: - [ ] Task description\n\
+            - Break down complex tasks into smaller, implementable steps\n\
+            - Include testing requirements for each major feature\n\
+            - Focus on practical implementation steps\n\
+            - Each task should be specific and actionable\n\n\
+            Generate a comprehensive plan that a developer can follow step by step.",
+            self.task_description,
+            todo_list_path
+        );
+
+        format!(
+            "OPENAI_BASE_URL=\"{}\" OPENAI_API_KEY=\"{}\" codex --quiet \"{}\"",
+            self.litellm_config.url,
+            self.litellm_config.api_key,
+            prompt.replace('"', "\\\"")
+        )
+    }
+
+    /// Start the planning workflow by executing codex command in Overseer pane
+    fn start_planning_workflow(&mut self) {
+        // Generate the codex command
+        let codex_command = self.build_codex_command();
+
+        let log_msg = format!("Generated codex command: {}", codex_command);
+        let _ = self.log_coordinator(&log_msg);
+
+        // Execute the command in the Overseer pane
+        match self.execute_command_in_pane(&codex_command, PaneRole::Overseer) {
             Ok(()) => {
-                let success_msg = "Successfully sent StartPlanning message to Overseer".to_string();
+                let success_msg =
+                    "Successfully executed codex command in Overseer pane".to_string();
                 let _ = self.log_coordinator(&success_msg);
 
-                // Update workflow phase to PlanningInProgress
-                // Note: This would need mutable self, so we'll log it for now
-                let phase_msg =
-                    "Workflow phase should transition to PlanningInProgress".to_string();
-                let _ = self.log_coordinator(&phase_msg);
-            }
-            Err(e) => {
-                let error_msg = format!("Failed to send StartPlanning message to Overseer: {}", e);
-                let _ = self.log_coordinator(&error_msg);
-
-                // Fall back to direct pane targeting by name
-                match self.send_coordination_message(start_planning_msg, "Overseer") {
+                // Transition to PlanningInProgress phase
+                match self.transition_to_planning_in_progress() {
                     Ok(()) => {
-                        let fallback_msg =
-                            "Successfully sent StartPlanning via direct pane targeting".to_string();
-                        let _ = self.log_coordinator(&fallback_msg);
+                        let transition_msg =
+                            "Successfully transitioned to PlanningInProgress phase".to_string();
+                        let _ = self.log_coordinator(&transition_msg);
                     }
-                    Err(fallback_err) => {
-                        let fallback_error =
-                            format!("Both routing methods failed: {}", fallback_err);
-                        let _ = self.log_coordinator(&fallback_error);
+                    Err(e) => {
+                        let error_msg =
+                            format!("Failed to transition to PlanningInProgress: {}", e);
+                        let _ = self.log_coordinator(&error_msg);
                     }
                 }
+            }
+            Err(e) => {
+                let error_msg = format!("Failed to execute codex command in Overseer pane: {}", e);
+                let _ = self.log_coordinator(&error_msg);
             }
         }
     }
@@ -599,9 +686,9 @@ impl ZellijPlugin for State {
                 // Rediscover panes with the new manifest
                 self.discover_and_register_panes();
 
-                // If we have permissions and found panes, send initial message
+                // If we have permissions and found panes, start planning workflow
                 if self.permissions_granted && !self.get_registered_roles().is_empty() {
-                    self.send_start_planning_message();
+                    self.start_planning_workflow();
                 }
 
                 true // trigger re-render to show updated pane information

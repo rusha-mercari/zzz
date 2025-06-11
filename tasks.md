@@ -58,7 +58,32 @@ Based on the plan.md file, here is a comprehensive todo list broken down into di
 
 ### 4. Workflow State Machine
 
-- [ ] **4.1** Implement state transition logic for Initialize → Planning
+- [x] **4.1** Implement state transition logic for Initialize → Planning
+  - [ ] **4.1.1** Create command generation utilities:
+    - Add method `build_codex_command(&self) -> String` to generate the full command
+    - Include environment variables: `OPENAI_BASE_URL` and `OPENAI_API_KEY`
+    - Create enhanced prompt that instructs codex to write to `.zzz/task-{task_id}/todo-list.md`
+    - Add `--quiet` flag to codex for non-interactive mode
+  - [ ] **4.1.2** Create pane command execution method:
+    - Add method `execute_command_in_pane(&self, command: &str, target_role: PaneRole) -> Result<(), CommunicationError>`
+    - Use `write_chars_to_pane_id()` via the message router
+    - Add newline character to execute the command
+    - Include error handling for pane not found
+  - [ ] **4.1.3** Update `send_start_planning_message()` method:
+    - Rename to `start_planning_workflow(&mut self)` to reflect new behavior
+    - Replace JSON message sending with codex command execution
+    - Target the `PaneRole::Overseer` pane with the codex command
+    - Add state transition to `PlanningInProgress` after successful command execution
+  - [ ] **4.1.4** Create enhanced prompt for codex:
+    - Build a detailed prompt that includes task description from configuration
+    - Instruction to create a step-by-step todo list
+    - Specific file path: `.zzz/task-{task_id}/todo-list.md`
+    - Format requirements (markdown with checkboxes)
+    - Context about the development workflow
+  - [ ] **4.1.5** Add state transition validation:
+    - Ensure we only transition from `Initializing` to `PlanningInProgress`
+    - Validate that permissions are granted, panes are discovered, and litellm config is available
+    - Add comprehensive logging for the command execution and state transition
 
 - [ ] **4.2** Implement Planning → Implementation transition with todo-list.md detection
 

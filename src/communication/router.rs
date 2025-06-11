@@ -93,6 +93,23 @@ impl<T: ZellijService> MessageRouter<T> {
         Ok(())
     }
 
+    /// Execute a raw command in a specific pane role
+    pub fn execute_command_in_role(
+        &self,
+        command: &str,
+        target_role: PaneRole,
+    ) -> Result<(), CommunicationError> {
+        // Look up the pane ID for the target role
+        let pane_id = self
+            .get_pane_id(&target_role)
+            .ok_or(CommunicationError::PaneNotFound(target_role))?;
+
+        // Write the command directly to the target pane
+        self.zellij_service.write_chars_to_pane_id(command, pane_id);
+
+        Ok(())
+    }
+
     /// Route a message to multiple pane roles
     pub fn route_message_to_roles(
         &self,
