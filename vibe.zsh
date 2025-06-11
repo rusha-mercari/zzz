@@ -3,14 +3,24 @@ v() {
     local assistant="$1"
     shift
 
-    if ! op account get --account example &>/dev/null; then
+    if ! op account get &>/dev/null; then
         echo "Not signed in to 1Password (example account). Signing in..." >&2
-        eval "$(op signin --account example)" # Use eval "$(cmd)" for robustness
+        local signin_output=$(op signin 2>/dev/null)
+        if [[ $? -ne 0 || -z "$signin_output" ]]; then
+            echo "Error: Failed to sign in to 1Password" >&2
+            return 1
+        fi
+        eval "$signin_output"
     fi
 
-    local api_key=$(op read "op://Employee/litellm/credential")
+    local api_key=$(op read "op://Employee/litellm/credential" 2>/dev/null)
+    if [[ -z "$api_key" ]]; then
+        echo "Error: Failed to retrieve API key from 1Password" >&2
+        echo "Please check that the credential 'op://Employee/litellm/credential' exists and is accessible" >&2
+        return 1
+    fi
     local base_url="https://litellm.example.in"
-
+    
     case "$assistant" in
         oco)
             OCO_API_KEY="$api_key" OCO_API_URL="$base_url" command oco "$@"
@@ -44,9 +54,13 @@ zzz() {
 
     local -A op_session_env_map 
 
-    if ! op account get --account example &>/dev/null; then
-        echo "Not signed in to 1Password (example account). Signing in now..." >&2
-        local signin_output=$(op signin --account example)
+    if ! op account get &>/dev/null; then
+        echo "Not signed in to 1Password. Signing in now..." >&2
+        local signin_output=$(op signin 2>/dev/null)
+        if [[ $? -ne 0 || -z "$signin_output" ]]; then
+            echo "Error: Failed to sign in to 1Password" >&2
+            return 1
+        fi
         eval "$signin_output" 
         echo "$signin_output" | while IFS= read -r line; do
             if [[ "$line" =~ ^export\ ([A-Z_]+)=[\'\"]?([^\'\"]*)[\'\"]?\;$ ]]; then
