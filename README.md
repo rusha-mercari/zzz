@@ -13,15 +13,15 @@ The ZZZ plugin acts as a central coordinator in a Zellij layout, orchestrating c
 ### Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    ZZZ Coordinator Plugin                   │
-├─────────────┬─────────────┬─────────────┬─────────────────┤
-│   Overseer  │  Commander  │ Task List   │     Review      │
-│  (OpenAI)   │   (Claude)  │   Viewer    │    Viewer       │
-│             │             │             │                 │
-│ • Planning  │ • Implementation │ • Todo tracking │ • Code review │
-│ • Reviews   │ • Code writing   │ • Progress view │ • Feedback    │
-└─────────────┴─────────────┴─────────────┴─────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│                    ZZZ Coordinator Plugin                              │
+├─────────────┬───────────────────┬─────────────────┬────────────────────┤
+│   Overseer  │  Commander        │   Task List     │     Review         │
+│  (OpenAI)   │   (Claude)        │     Viewer      │     Viewer         │
+│             │                   │                 │                    │
+│ • Planning  │ • Implementation  │ • Todo tracking │ • Code review      │
+│ • Reviews   │ • Code writing    │ • Progress view │ • Feedback         │
+└─────────────┴───────────────────┴─────────────────┴────────────────────┘
 ```
 
 ## Features
