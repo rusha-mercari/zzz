@@ -24,6 +24,9 @@ The ZZZ plugin acts as a central coordinator in a Zellij layout, orchestrating c
 └─────────────┴───────────────────┴─────────────────┴────────────────────┘
 ```
 
+
+<img width="2998" alt="img" src="https://github.com/user-attachments/assets/d3b72456-b211-40c8-9ac7-9e8fd617e6b7" />
+
 ## Features
 
 - **🤖 Multi-AI Coordination**: Seamlessly coordinates between OpenAI Codex and Claude Code
